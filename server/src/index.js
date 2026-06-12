@@ -2,6 +2,8 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { accountRoutes } from "./routes/accountRoutes.js";
 import { agendaRoutes } from "./routes/agendaRoutes.js";
 import { authRoutes } from "./routes/authRoutes.js";
@@ -44,6 +46,15 @@ app.use("/api/lab", labRoutes);
 app.use("/api/patients", patientRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/agenda", agendaRoutes);
+
+// Serve client build in production
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDist = path.resolve(__dirname, "../../client/dist");
+app.use(express.static(clientDist));
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(clientDist, "index.html"));
+});
 
 app.use((error, _req, res, _next) => {
   console.error(error);
