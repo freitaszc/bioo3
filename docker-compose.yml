@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bioo3-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bioo3
+      POSTGRES_PASSWORD: bioo3_password
+      POSTGRES_DB: bioo3
+    ports:
+      - "5432:5432"
+    volumes:
+      - bioo3-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bioo3 -d bioo3"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  bioo3-postgres-data:
+

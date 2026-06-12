@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.DS_Store
+*.log
+coverage/
+uploads/
+server/prisma/migrations/
+server/prisma/seed.js

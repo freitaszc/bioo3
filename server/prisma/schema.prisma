@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               Int             @id @default(autoincrement())
+  username         String          @unique
+  passwordHash     String
+  firstName        String          @default("")
+  secondName       String          @default("")
+  birthdate        DateTime?
+  email            String?         @unique
+  profileImagePath String          @default("/assets/user-icon.png")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  analysisEvents   AnalysisEvent[]
+}
+
+model AnalysisEvent {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  source    String   @default("pdf")
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId])
+}
+
+model Video {
+  id         Int      @id @default(autoincrement())
+  title      String
+  playbackId String   @unique
+  pdf        String?
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Doctor {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  patients  Patient[]
+
+  @@unique([name])
+}
+
+model Patient {
+  id            Int            @id @default(autoincrement())
+  name          String
+  age           Int
+  cpf           String         @default("")
+  gender        String         @default("")
+  phone         String         @default("")
+  status        String         @default("Ativo")
+  prescription  String         @default("")
+  doctorId      Int?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  doctor        Doctor?        @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  consultations Consultation[]
+
+  @@index([name])
+  @@index([status])
+  @@index([doctorId])
+}
+
+model Consultation {
+  id        Int      @id @default(autoincrement())
+  patientId Int
+  notes     String   @default("")
+  createdAt DateTime @default(now())
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([createdAt])
+}
+
+model Product {
+  id            Int      @id @default(autoincrement())
+  name          String
+  quantity      Int      @default(0)
+  minStock      Int      @default(5)
+  purchasePrice Decimal  @default(0) @db.Decimal(10, 2)
+  salePrice     Decimal  @default(0) @db.Decimal(10, 2)
+  status        String   @default("Ativo")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([name])
+  @@index([status])
+}
+
+model AgendaEvent {
+  id        Int      @id @default(autoincrement())
+  title     String
+  startsAt  DateTime
+  notes     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startsAt])
+}
