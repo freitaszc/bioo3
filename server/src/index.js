@@ -50,6 +50,7 @@ app.use((error, _req, res, _next) => {
   res.status(500).json({ error: "Erro interno do servidor." });
 });
 
-app.listen(port, "127.0.0.1", () => {
-  console.log(`BioO3 API listening on http://localhost:${port}`);
+const host = process.env.HOST || "0.0.0.0";
+app.listen(port, host, () => {
+  console.log(`BioO3 API listening on http://${host}:${port}`);
 });
