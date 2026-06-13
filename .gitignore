@@ -5,5 +5,3 @@ dist/
 *.log
 coverage/
 uploads/
-server/prisma/migrations/
-server/prisma/seed.js
