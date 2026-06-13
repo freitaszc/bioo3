@@ -36,20 +36,22 @@ function isSameRequestOrigin(req, origin) {
   }
 }
 
-app.use(cors((req, callback) => ({
-  origin(origin, originCallback) {
-    if (!origin || clientOrigins.includes(origin) || isSameRequestOrigin(req, origin)) {
-      return originCallback(null, true);
-    }
+app.use(cors((req, callback) => {
+  callback(null, {
+    origin(origin, originCallback) {
+      if (!origin || clientOrigins.includes(origin) || isSameRequestOrigin(req, origin)) {
+        return originCallback(null, true);
+      }
 
-    if (req.path.startsWith("/api")) {
-      return originCallback(new Error("Origin not allowed by CORS."));
-    }
+      if (req.path.startsWith("/api")) {
+        return originCallback(new Error("Origin not allowed by CORS."));
+      }
 
-    return originCallback(null, false);
-  },
-  credentials: true
-})));
+      return originCallback(null, false);
+    },
+    credentials: true
+  });
+}));
 app.use(express.json({ limit: "15mb" }));
 app.use(cookieParser());
 
