@@ -49,6 +49,7 @@ function previewPayload(previewId, extraction) {
       testName: value.testName,
       value: value.value,
       rawValue: value.rawValue,
+      parser: value.parser,
       sourceLine: value.sourceLine,
       lineNumber: value.lineNumber
     }));

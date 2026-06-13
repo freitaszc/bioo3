@@ -123,19 +123,53 @@ function getCandidateLines(lines, alias) {
     candidates.push({
       line,
       lineNumber: index + 1,
-      window: [line, lines[index + 1] || "", lines[index + 2] || ""].filter(Boolean).join(" ")
+      window: lines.slice(index, index + 9).filter(Boolean).join(" ")
     });
   }
   return candidates;
 }
 
-function extractValueFromCandidate(candidate, alias) {
+function extractNumericResult(text) {
+  const valueMatch = normalizeText(text).match(/(?:resultado|valor)\s*[:.= -]*\s*([<>]?\s*-?\d{1,6}(?:[.,]\d{1,4})?)/);
+  if (!valueMatch) return null;
+
+  const rawValue = valueMatch[1];
+  const value = parseNumericValue(rawValue);
+  if (!Number.isFinite(value)) return null;
+
+  return {
+    value,
+    rawValue: rawValue.replace(/\s+/g, "")
+  };
+}
+
+function extractValueWithBlockResult(candidate, alias) {
   const normalizedWindow = normalizeText(candidate.window);
   const aliasIndex = normalizedWindow.indexOf(alias);
   if (aliasIndex === -1) return null;
 
   const afterAlias = normalizedWindow.slice(aliasIndex + alias.length);
-  const valueMatch = afterAlias.match(/[:=]?\s*(?:resultado|valor)?\s*[:=]?\s*([<>]?\s*-?\d{1,6}(?:[.,]\d{1,4})?)/);
+  const result = extractNumericResult(afterAlias);
+  if (!result) return null;
+
+  return {
+    ...result,
+    line: candidate.line,
+    lineNumber: candidate.lineNumber,
+    parser: "block-result"
+  };
+}
+
+function extractValueFromAliasLine(candidate, alias) {
+  const normalizedLine = normalizeText(candidate.line);
+  const aliasIndex = normalizedLine.indexOf(alias);
+  if (aliasIndex === -1) return null;
+
+  const afterAlias = normalizedLine.slice(aliasIndex + alias.length);
+  const valueMatch = afterAlias.match(/^[:=.\s-]*(?:resultado|valor)?[:=.\s-]*([<>]?\s*-?\d{1,6}(?:[.,]\d{1,4})?)/)
+    || (candidate.line.includes("..")
+      ? afterAlias.match(/\.{2,}\s*([<>]?\s*-?\d{1,6}(?:[.,]\d{1,4})?)/)
+      : null);
   if (!valueMatch) return null;
 
   const rawValue = valueMatch[1];
@@ -146,17 +180,25 @@ function extractValueFromCandidate(candidate, alias) {
     value,
     rawValue: rawValue.replace(/\s+/g, ""),
     line: candidate.line,
-    lineNumber: candidate.lineNumber
+    lineNumber: candidate.lineNumber,
+    parser: "alias-line"
   };
 }
+
+const VALUE_PARSERS = [
+  extractValueFromAliasLine,
+  extractValueWithBlockResult
+];
 
 function chooseBestValue(lines, matcher) {
   for (const alias of matcher.aliases) {
     const candidates = getCandidateLines(lines, alias);
     for (const candidate of candidates) {
-      const value = extractValueFromCandidate(candidate, alias);
-      if (value) {
-        return { ...value, matchedAlias: alias };
+      for (const parser of VALUE_PARSERS) {
+        const value = parser(candidate, alias);
+        if (value) {
+          return { ...value, matchedAlias: alias };
+        }
       }
     }
   }
@@ -164,12 +206,35 @@ function chooseBestValue(lines, matcher) {
   return null;
 }
 
+function parseBrazilianDate(value) {
+  const match = String(value || "").match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (!match) return null;
+
+  const [, day, month, year] = match;
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function calculateAgeAtDate(birthDate, referenceDate = new Date()) {
+  if (!birthDate) return 0;
+
+  let age = referenceDate.getFullYear() - birthDate.getFullYear();
+  const birthdayPassed = referenceDate.getMonth() > birthDate.getMonth()
+    || (referenceDate.getMonth() === birthDate.getMonth() && referenceDate.getDate() >= birthDate.getDate());
+  if (!birthdayPassed) age -= 1;
+
+  return age > 0 ? age : 0;
+}
+
 function extractPatientInfo(text, lines) {
   const joined = text.replace(/\s+/g, " ");
-  const cpf = joined.match(/CPF\s*[:\s]?\s*(\d{3}\.?\d{3}\.?\d{3}-?\d{2})/i)?.[1] || "";
+  const cpf = joined.match(/C\.?P\.?F\.?\s*[:\s]?\s*(\d{3}\.?\d{3}\.?\d{3}-?\d{2})/i)?.[1] || "";
   const gender = joined.match(/Sexo\s*[:\s]?\s*([MF])/i)?.[1] || "";
-  const age = Number(joined.match(/(?:Idade\s*[:\s]?\s*)?(\d{1,3})\s*(?:anos|a\b)/i)?.[1] || 0);
   const doctor = lines.find((line) => /m[eé]dico|dr\.?|dra\.?/i.test(line)) || "";
+  const birthDateLineIndex = lines.findIndex((line) => /D\.?N\.?\s*\d{2}\/\d{2}\/\d{4}/i.test(line));
+  const birthDate = birthDateLineIndex >= 0 ? parseBrazilianDate(lines[birthDateLineIndex]) : null;
+  const referenceDate = parseBrazilianDate(lines.find((line) => /data de impressão|data de coleta/i.test(line))) || new Date();
+  let age = birthDate ? calculateAgeAtDate(birthDate, referenceDate) : 0;
 
   let name = "";
   const patientLine = lines.find((line) => /paciente\s*:/i.test(line));
@@ -182,6 +247,16 @@ function extractPatientInfo(text, lines) {
     if (birthDateLine) {
       name = birthDateLine.replace(/\d{2}\/\d{2}\/\d{4}.*/i, "").trim();
     }
+  }
+
+  if (!name && birthDateLineIndex > 0) {
+    name = lines[birthDateLineIndex - 1]
+      .replace(/\s+CAD\d+\s*$/i, "")
+      .trim();
+  }
+
+  if (!age) {
+    age = Number(joined.match(/Idade\s*[:\s]?\s*(\d{1,3})\s*(?:anos|a\b)/i)?.[1] || 0);
   }
 
   return {
@@ -210,6 +285,7 @@ export async function extractPdfToJson(pdfPath, options = {}) {
       value: match.value,
       rawValue: match.rawValue,
       matchedAlias: match.matchedAlias,
+      parser: match.parser,
       sourceLine: match.line,
       lineNumber: match.lineNumber
     };

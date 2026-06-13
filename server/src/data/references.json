@@ -60,7 +60,10 @@
         }
       ],
       "high": ""
-    }
+    },
+    "synonyms": [
+      "cortisol"
+    ]
   },
   "Cortisol despertar": {
     "ideal": "13,1-18,3 nmol/L",
@@ -175,6 +178,7 @@
       "25-hidroxivitamina d",
       "25 hidroxi d",
       "25-hidroxi d3",
+      "vitamina d-25 hidroxi",
       "25 oh vitamina d",
       "25(oh)d"
     ]
@@ -696,7 +700,13 @@
         }
       ],
       "high": ""
-    }
+    },
+    "synonyms": [
+      "apolipoproteina a",
+      "apolipoproteína a",
+      "apoa1",
+      "apo a1"
+    ]
   },
   "ApoB": {
     "ideal": "< 100 mg/dL",
@@ -724,7 +734,13 @@
           "aplicacao": "Aplicar dose única (IM)."
         }
       ]
-    }
+    },
+    "synonyms": [
+      "apolipoproteina b",
+      "apolipoproteína b",
+      "apob",
+      "apo b"
+    ]
   },
   "ApoB/ApoA1": {
     "ideal": {
@@ -939,7 +955,12 @@
         }
       ],
       "high": ""
-    }
+    },
+    "synonyms": [
+      "gama glutamil transferase",
+      "gama gt",
+      "ggt"
+    ]
   },
   "TGO (AST)": {
     "ideal": "10-20 U/L",
@@ -962,7 +983,13 @@
         }
       ],
       "high": ""
-    }
+    },
+    "synonyms": [
+      "transaminase - tgo",
+      "transaminase tgo",
+      "tgo",
+      "ast"
+    ]
   },
   "TGP (ALT)": {
     "ideal": "10-20 U/L",
@@ -985,7 +1012,13 @@
         }
       ],
       "high": ""
-    }
+    },
+    "synonyms": [
+      "transaminase - tgp",
+      "transaminase tgp",
+      "tgp",
+      "alt"
+    ]
   },
   "Fosfatase Alkalina": {
     "ideal": "> 50 U/L",
@@ -1225,7 +1258,13 @@
         }
       ],
       "high": ""
-    }
+    },
+    "synonyms": [
+      "t3l",
+      "t3l - triiodotironina livre",
+      "triiodotironina livre",
+      "t3 livre"
+    ]
   },
   "T3 reverso (sem função)": {
     "ideal": "0,1-0,25 ng/mL",
