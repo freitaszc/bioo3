@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { RouteSkeleton } from "./components/Skeleton";
 import AccountPage from "./pages/AccountPage";
 import AgendaPage from "./pages/AgendaPage";
 import BioO3LabPage from "./pages/BioO3LabPage";
@@ -15,7 +16,7 @@ function ProtectedRoute({ children }) {
   const { loading, user } = useAuth();
 
   if (loading) {
-    return <div className="screen-loader">Carregando...</div>;
+    return <RouteSkeleton />;
   }
 
   if (!user) {

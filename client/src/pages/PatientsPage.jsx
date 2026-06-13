@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { TableSkeleton } from "../components/Skeleton";
 import Topbar from "../components/Topbar";
 
 const emptyPatient = {
@@ -261,7 +262,7 @@ export default function PatientsPage() {
           </div>
 
           {error && <p className="form-error">{error}</p>}
-          {loading && <div className="empty-state">Carregando pacientes...</div>}
+          {loading && <TableSkeleton columns={6} />}
           {!loading && !error && (
             <div className="table-wrap">
               <table className="control-table patients-table">

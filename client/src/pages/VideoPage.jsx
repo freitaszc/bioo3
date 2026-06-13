@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
+import { VideoPlayerSkeleton } from "../components/Skeleton";
 import Topbar from "../components/Topbar";
 
 function loadHlsScript() {
@@ -75,7 +76,7 @@ export default function VideoPage() {
         </section>
 
         <section className="panel">
-          {loading && <div className="empty-state">Carregando aula...</div>}
+          {loading && <VideoPlayerSkeleton />}
           {error && <p className="form-error">{error}</p>}
           {video && (
             <>
@@ -95,4 +96,3 @@ export default function VideoPage() {
     </div>
   );
 }
-

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
+import { VideoListSkeleton } from "../components/Skeleton";
 import Topbar from "../components/Topbar";
 
 export default function VideosPage() {
@@ -35,7 +36,7 @@ export default function VideosPage() {
             </div>
           </div>
 
-          {loading && <div className="empty-state">Carregando videoaulas...</div>}
+          {loading && <VideoListSkeleton />}
           {error && <p className="form-error">{error}</p>}
           {!loading && !error && (
             <div className="video-list">
@@ -54,4 +55,3 @@ export default function VideosPage() {
     </div>
   );
 }
-

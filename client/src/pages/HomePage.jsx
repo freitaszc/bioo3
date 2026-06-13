@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import AnalysisChart from "../components/AnalysisChart";
+import { ChartSkeleton, SkeletonBlock } from "../components/Skeleton";
 import Topbar from "../components/Topbar";
 
 export default function HomePage() {
@@ -37,21 +38,21 @@ export default function HomePage() {
           <article className="summary-card gradient-card">
             <p>Total no período</p>
             <div>
-              <strong>{stats.total}</strong>
+              <strong>{loading ? <SkeletonBlock className="metric-skeleton" /> : stats.total}</strong>
               <span>últimos 7 dias</span>
             </div>
           </article>
           <article className="summary-card">
             <p>Média diária</p>
             <div>
-              <strong>{average}</strong>
+              <strong>{loading ? <SkeletonBlock className="metric-skeleton" /> : average}</strong>
               <span>análises/dia</span>
             </div>
           </article>
           <article className="summary-card">
             <p>Análises restantes</p>
             <div>
-              <strong>{remainingAnalyses}</strong>
+              <strong>{loading ? <SkeletonBlock className="metric-skeleton" /> : remainingAnalyses}</strong>
             </div>
           </article>
         </section>
@@ -63,7 +64,7 @@ export default function HomePage() {
               <p>Controle rápido do volume de análises concluídas.</p>
             </div>
           </div>
-          {loading && <div className="empty-state">Carregando gráfico...</div>}
+          {loading && <ChartSkeleton />}
           {error && <div className="form-error">{error}</div>}
           {!loading && !error && <AnalysisChart data={stats.days} />}
         </section>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
+import { AgendaSkeleton } from "../components/Skeleton";
 import Topbar from "../components/Topbar";
 
 const emptyEvent = {
@@ -133,7 +134,7 @@ export default function AgendaPage() {
           </div>
 
           {error && <p className="form-error">{error}</p>}
-          {loading && <div className="empty-state compact-empty">Carregando agenda...</div>}
+          {loading && <AgendaSkeleton />}
           {!loading && (
             <div className="agenda-grid">
               {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((label) => (

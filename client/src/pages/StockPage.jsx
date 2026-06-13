@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { TableSkeleton } from "../components/Skeleton";
 import Topbar from "../components/Topbar";
 
 const emptyProduct = {
@@ -137,7 +138,7 @@ export default function StockPage() {
           </div>
 
           {error && <p className="form-error">{error}</p>}
-          {loading && <div className="empty-state">Carregando estoque...</div>}
+          {loading && <TableSkeleton columns={7} />}
           {!loading && !error && (
             <div className="table-wrap">
               <table className="control-table stock-table">
