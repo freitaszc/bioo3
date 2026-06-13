@@ -35,7 +35,9 @@ async function main() {
 
   console.log(`Seeded admin user: ${username}`);
 
-  const videosPath = path.resolve(__dirname, "../../../Web/json/videos.json");
+  const videosPath = fs.existsSync(path.resolve(__dirname, "seed-data/videos.json"))
+    ? path.resolve(__dirname, "seed-data/videos.json")
+    : path.resolve(__dirname, "../../../Web/json/videos.json");
   if (fs.existsSync(videosPath)) {
     const videos = JSON.parse(fs.readFileSync(videosPath, "utf8"));
     for (const [index, video] of videos.entries()) {
