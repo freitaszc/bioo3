@@ -22,15 +22,34 @@ const clientOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173,http:
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin || clientOrigins.includes(origin)) {
-      return callback(null, true);
+function isSameRequestOrigin(req, origin) {
+  try {
+    const originUrl = new URL(origin);
+    const forwardedHost = req.get("x-forwarded-host");
+    const requestHost = forwardedHost || req.get("host");
+    const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+    const requestProto = forwardedProto || req.protocol;
+
+    return originUrl.host === requestHost && originUrl.protocol === `${requestProto}:`;
+  } catch {
+    return false;
+  }
+}
+
+app.use(cors((req, callback) => ({
+  origin(origin, originCallback) {
+    if (!origin || clientOrigins.includes(origin) || isSameRequestOrigin(req, origin)) {
+      return originCallback(null, true);
     }
-    return callback(new Error("Origin not allowed by CORS."));
+
+    if (req.path.startsWith("/api")) {
+      return originCallback(new Error("Origin not allowed by CORS."));
+    }
+
+    return originCallback(null, false);
   },
   credentials: true
-}));
+})));
 app.use(express.json({ limit: "15mb" }));
 app.use(cookieParser());
 

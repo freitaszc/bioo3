@@ -5,9 +5,12 @@
   "scripts": {
     "dev:client": "npm --prefix client run dev",
     "dev:server": "npm --prefix server run dev",
+    "build": "npm run prisma:generate && npm run prisma:deploy && npm run build:client",
     "build:client": "npm --prefix client run build",
     "start:server": "npm --prefix server run start",
-    "install:all": "npm --prefix server install && npm --prefix client install"
+    "install:all": "npm --prefix server install && npm --prefix client install",
+    "prisma:generate": "npm --prefix server run prisma:generate",
+    "prisma:deploy": "npm --prefix server run prisma:deploy",
+    "seed": "npm --prefix server run seed"
   }
 }
-
