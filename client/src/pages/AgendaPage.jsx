@@ -162,7 +162,7 @@ export default function AgendaPage() {
                             openEdit(event);
                           }}
                         >
-                          {event.time} {event.title}
+                          {event.time} {event.title}{event.clinicName ? ` · ${event.clinicName}` : ""}
                         </span>
                       ))}
                       {dayEvents.length > 3 && <span className="agenda-more">+{dayEvents.length - 3}</span>}

@@ -18,7 +18,7 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const displayName = [user?.firstName, user?.secondName].filter(Boolean).join(" ") || user?.username;
+  const displayName = [user?.firstName, user?.secondName].filter(Boolean).join(" ") || user?.email;
   const average = stats.days.length ? (stats.total / stats.days.length).toFixed(1) : "0.0";
   const remainingAnalyses = stats.remainingAnalyses ?? 0;
 
@@ -52,7 +52,7 @@ export default function HomePage() {
           <article className="summary-card">
             <p>Análises restantes</p>
             <div>
-              <strong>{loading ? <SkeletonBlock className="metric-skeleton" /> : remainingAnalyses}</strong>
+              <strong>{loading ? <SkeletonBlock className="metric-skeleton" /> : stats.remainingAnalyses === null ? "—" : remainingAnalyses}</strong>
             </div>
           </article>
         </section>

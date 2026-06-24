@@ -138,7 +138,7 @@ export default function StockPage() {
           </div>
 
           {error && <p className="form-error">{error}</p>}
-          {loading && <TableSkeleton columns={7} />}
+          {loading && <TableSkeleton columns={8} />}
           {!loading && !error && (
             <div className="table-wrap">
               <table className="control-table stock-table">
@@ -146,6 +146,7 @@ export default function StockPage() {
                   <tr>
                     <th className="center"><input type="checkbox" checked={products.length > 0 && selectedIds.length === products.length} onChange={toggleAll} /></th>
                     <th>Produto</th>
+                    <th>Clínica</th>
                     <th>Qtd.</th>
                     <th>Compra</th>
                     <th>Venda</th>
@@ -158,6 +159,7 @@ export default function StockPage() {
                     <tr key={product.id}>
                       <td className="center"><input type="checkbox" checked={selectedIds.includes(product.id)} onChange={() => toggleSelection(product.id)} /></td>
                       <td className="strong-cell">{product.name}</td>
+                      <td>{product.clinicName || "—"}</td>
                       <td className="center">{product.quantity}</td>
                       <td className="center">{currency(product.purchasePrice)}</td>
                       <td className="center">{currency(product.salePrice)}</td>
@@ -169,7 +171,7 @@ export default function StockPage() {
                       <td className="center"><button className="secondary-button compact-button" type="button" onClick={() => openEdit(product)}>Editar</button></td>
                     </tr>
                   ))}
-                  {!products.length && <tr><td colSpan="7"><div className="empty-state compact-empty">Nenhum produto cadastrado.</div></td></tr>}
+                  {!products.length && <tr><td colSpan="8"><div className="empty-state compact-empty">Nenhum produto cadastrado.</div></td></tr>}
                 </tbody>
               </table>
             </div>

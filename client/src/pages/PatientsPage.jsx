@@ -63,14 +63,14 @@ function PatientForm({ doctors, form, setForm, onSubmit, submitLabel, error, hid
       </label>
       <label>
         <span>Telefone</span>
-        <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+        <input inputMode="numeric" maxLength="11" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, "").slice(0, 11) })} />
       </label>
       <label>
         <span>Médico</span>
         <select value={form.doctorId} onChange={(e) => setForm({ ...form, doctorId: e.target.value })}>
           <option value="">Selecione o médico</option>
           {doctors.map((doctor) => (
-            <option key={doctor.id} value={doctor.id}>{doctor.name}</option>
+            <option key={doctor.id} value={doctor.id}>{doctor.name}{doctor.clinic?.name ? ` · ${doctor.clinic.name}` : ""}</option>
           ))}
         </select>
       </label>
@@ -262,7 +262,7 @@ export default function PatientsPage() {
           </div>
 
           {error && <p className="form-error">{error}</p>}
-          {loading && <TableSkeleton columns={6} />}
+          {loading && <TableSkeleton columns={7} />}
           {!loading && !error && (
             <div className="table-wrap">
               <table className="control-table patients-table">
@@ -285,6 +285,7 @@ export default function PatientsPage() {
                       />
                     </th>
                     <th>Paciente</th>
+                    <th>Clínica</th>
                     <th>Telefone</th>
                     <th>Médico</th>
                     <th>Status</th>
@@ -307,6 +308,7 @@ export default function PatientsPage() {
                           {patient.name}
                         </button>
                       </td>
+                      <td>{patient.clinicName || "—"}</td>
                       <td>{patient.phone || "Não informado"}</td>
                       <td>{patient.doctorName}</td>
                       <td>
@@ -327,7 +329,7 @@ export default function PatientsPage() {
                   ))}
                   {!patients.length && (
                     <tr>
-                      <td colSpan="6"><div className="empty-state compact-empty">Nenhum paciente encontrado.</div></td>
+                      <td colSpan="7"><div className="empty-state compact-empty">Nenhum paciente encontrado.</div></td>
                     </tr>
                   )}
                 </tbody>

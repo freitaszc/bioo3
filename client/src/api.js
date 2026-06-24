@@ -1,7 +1,15 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
+let clinicScope = localStorage.getItem("bioo3_clinic_scope") || "";
+
+function scopedPath(path) {
+  const operational = ["/dashboard", "/patients", "/products", "/agenda", "/lab"];
+  if (!clinicScope || !operational.some((prefix) => path.startsWith(prefix))) return path;
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}clinicId=${encodeURIComponent(clinicScope)}`;
+}
 
 async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${API_BASE_URL}${scopedPath(path)}`, {
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
@@ -22,6 +30,12 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  setClinicScope: (clinicId) => {
+    clinicScope = clinicId ? String(clinicId) : "";
+    if (clinicScope) localStorage.setItem("bioo3_clinic_scope", clinicScope);
+    else localStorage.removeItem("bioo3_clinic_scope");
+  },
+  register: (payload) => request("/auth/register", { method: "POST", body: JSON.stringify(payload) }),
   login: (payload) => request("/auth/login", {
     method: "POST",
     body: JSON.stringify(payload)
@@ -100,6 +114,11 @@ export const api = {
     method: "POST",
     body: JSON.stringify(payload)
   }),
+  updateDoctor: (id, payload) => request(`/lab/doctors/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteDoctor: (id) => request(`/lab/doctors/${id}`, { method: "DELETE" }),
+  references: () => request("/lab/references"),
+  updateReference: (testName, ideal) => request(`/lab/references/${encodeURIComponent(testName)}`, { method: "PUT", body: JSON.stringify({ ideal }) }),
+  updateAnalysisPrescription: (patientId, prescription) => request(`/lab/patients/${patientId}/prescription`, { method: "PATCH", body: JSON.stringify({ prescription }) }),
   submitManualLab: (payload) => request("/lab/manual", {
     method: "POST",
     body: JSON.stringify(payload)
@@ -120,5 +139,10 @@ export const api = {
   updatePassword: (payload) => request("/account/password", {
     method: "PUT",
     body: JSON.stringify(payload)
-  })
+  }),
+  clinics: (status = "") => request(`/admin/clinics${status ? `?status=${status}` : ""}`),
+  approveClinic: (id) => request(`/admin/clinics/${id}/approve`, { method: "PATCH" }),
+  rejectClinic: (id, reason) => request(`/admin/clinics/${id}/reject`, { method: "PATCH", body: JSON.stringify({ reason }) }),
+  setClinicStatus: (id, status) => request(`/admin/clinics/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  setClinicEmail: (id, email) => request(`/admin/clinics/${id}/email`, { method: "PATCH", body: JSON.stringify({ email }) })
 };

@@ -11,6 +11,7 @@ import StaticPage from "./pages/StaticPage";
 import StockPage from "./pages/StockPage";
 import VideoPage from "./pages/VideoPage";
 import VideosPage from "./pages/VideosPage";
+import ClinicsPage from "./pages/ClinicsPage";
 
 function ProtectedRoute({ children }) {
   const { loading, user } = useAuth();
@@ -40,6 +41,7 @@ export default function App() {
       <Route path="/estoque" element={<ProtectedRoute><StockPage /></ProtectedRoute>} />
       <Route path="/agenda" element={<ProtectedRoute><AgendaPage /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
+      <Route path="/admin/clinics" element={<ProtectedRoute><ClinicsPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/inicio" replace />} />
     </Routes>
   );

@@ -91,7 +91,7 @@ export default function AccountPage() {
             </label>
             <label>
               <span>E-mail</span>
-              <input type="email" value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} />
+              <input type="email" value={profile.email} disabled={user?.role === "CLINIC"} onChange={(event) => setProfile({ ...profile, email: event.target.value })} />
             </label>
             {profileError && <p className="form-error full-width">{profileError}</p>}
             {profileMessage && <p className="form-success full-width">{profileMessage}</p>}
