@@ -19,6 +19,28 @@ model User {
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   analysisEvents   AnalysisEvent[]
+  role             String          @default("CLINIC")
+  clinicId         Int?            @unique
+  clinic           Clinic?         @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+}
+
+model Clinic {
+  id              Int             @id @default(autoincrement())
+  name            String
+  status          String          @default("PENDING")
+  rejectionReason String          @default("")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  user            User?
+  analysisEvents  AnalysisEvent[]
+  doctors         Doctor[]
+  patients        Patient[]
+  products        Product[]
+  agendaEvents    AgendaEvent[]
+  consultations   Consultation[]
+
+  @@index([name])
+  @@index([status])
 }
 
 model AnalysisEvent {
@@ -27,9 +49,12 @@ model AnalysisEvent {
   source    String   @default("pdf")
   createdAt DateTime @default(now())
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  clinicId  Int
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
   @@index([createdAt])
   @@index([userId])
+  @@index([clinicId])
 }
 
 model Video {
@@ -46,11 +71,25 @@ model Doctor {
   id        Int      @id @default(autoincrement())
   name      String
   phone     String   @default("")
+  councilType   String @default("")
+  councilNumber String @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   patients  Patient[]
+  clinicId  Int
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
-  @@unique([name])
+  @@unique([clinicId, name])
+  @@index([clinicId])
+}
+
+model ReferenceOverride {
+  id        Int      @id @default(autoincrement())
+  testName  String
+  ideal     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([testName])
 }
 
 model Patient {
@@ -67,10 +106,13 @@ model Patient {
   updatedAt     DateTime       @updatedAt
   doctor        Doctor?        @relation(fields: [doctorId], references: [id], onDelete: SetNull)
   consultations Consultation[]
+  clinicId      Int
+  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
   @@index([name])
   @@index([status])
   @@index([doctorId])
+  @@index([clinicId])
 }
 
 model Consultation {
@@ -79,9 +121,12 @@ model Consultation {
   notes     String   @default("")
   createdAt DateTime @default(now())
   patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinicId  Int
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
   @@index([patientId])
   @@index([createdAt])
+  @@index([clinicId])
 }
 
 model Product {
@@ -94,9 +139,12 @@ model Product {
   status        String   @default("Ativo")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  clinicId      Int
+  clinic        Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
   @@index([name])
   @@index([status])
+  @@index([clinicId])
 }
 
 model AgendaEvent {
@@ -106,6 +154,9 @@ model AgendaEvent {
   notes     String   @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  clinicId  Int
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
   @@index([startsAt])
+  @@index([clinicId])
 }

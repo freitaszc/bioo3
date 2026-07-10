@@ -13,23 +13,33 @@ const __dirname = path.dirname(__filename);
 
 async function main() {
   const username = process.env.ADMIN_USERNAME || "admin";
+  const email = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
   const password = process.env.ADMIN_PASSWORD;
 
-  if (!password || password === "change-me") {
-    throw new Error("Set ADMIN_PASSWORD in server/.env before running the seed.");
+  if (!password || password === "change-me" || !email) {
+    throw new Error("Set ADMIN_EMAIL and ADMIN_PASSWORD in server/.env before running the seed.");
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
 
+  const defaultClinic = await prisma.clinic.upsert({
+    where: { id: 1 }, update: { name: "BioO3", status: "ACTIVE" }, create: { id: 1, name: "BioO3", status: "ACTIVE" }
+  });
+  await prisma.user.updateMany({
+    where: { clinicId: defaultClinic.id, username: { not: username } },
+    data: { clinicId: null }
+  });
   await prisma.user.upsert({
     where: { username },
-    update: { passwordHash },
+    update: { passwordHash, email, role: "ADMIN", clinicId: defaultClinic.id },
     create: {
       username,
       passwordHash,
       firstName: "Admin",
       secondName: "",
-      email: null
+      email,
+      role: "ADMIN",
+      clinicId: defaultClinic.id
     }
   });
 
@@ -68,9 +78,9 @@ async function main() {
       const name = String(doctor?.name || "").trim();
       if (!name) continue;
       const record = await prisma.doctor.upsert({
-        where: { name },
+        where: { clinicId_name: { clinicId: defaultClinic.id, name } },
         update: { phone: String(doctor?.phone || "") },
-        create: { name, phone: String(doctor?.phone || "") }
+        create: { name, phone: String(doctor?.phone || ""), clinicId: defaultClinic.id }
       });
       doctorIdMap.set(Number(doctor.id), record.id);
     }
@@ -100,7 +110,8 @@ async function main() {
           phone: String(patient?.phone || ""),
           status: String(patient?.status || "Ativo"),
           prescription: String(patient?.prescription || ""),
-          doctorId: doctorIdMap.get(Number(patient?.doctor)) || null
+          doctorId: doctorIdMap.get(Number(patient?.doctor)) || null,
+          clinicId: defaultClinic.id
         },
         create: {
           id: Number(patient.id),
@@ -111,7 +122,8 @@ async function main() {
           phone: String(patient?.phone || ""),
           status: String(patient?.status || "Ativo"),
           prescription: String(patient?.prescription || ""),
-          doctorId: doctorIdMap.get(Number(patient?.doctor)) || null
+          doctorId: doctorIdMap.get(Number(patient?.doctor)) || null,
+          clinicId: defaultClinic.id
         }
       });
 
@@ -122,6 +134,7 @@ async function main() {
           await prisma.consultation.create({
             data: {
               patientId: record.id,
+              clinicId: defaultClinic.id,
               notes: String(note || "")
             }
           });
@@ -147,7 +160,7 @@ async function main() {
           minStock: Number(product?.min_stock || product?.minStock || 5),
           purchasePrice: Number(product?.purchase_price || product?.purchasePrice || 0),
           salePrice: Number(product?.sale_price || product?.salePrice || 0),
-          status: String(product?.status || "Ativo")
+          status: String(product?.status || "Ativo"), clinicId: defaultClinic.id
         },
         create: {
           id: Number(product.id),
@@ -156,7 +169,7 @@ async function main() {
           minStock: Number(product?.min_stock || product?.minStock || 5),
           purchasePrice: Number(product?.purchase_price || product?.purchasePrice || 0),
           salePrice: Number(product?.sale_price || product?.salePrice || 0),
-          status: String(product?.status || "Ativo")
+          status: String(product?.status || "Ativo"), clinicId: defaultClinic.id
         }
       });
     }
