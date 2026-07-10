@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import { prisma } from "../prisma.js";
-import { AUTH_COOKIE, publicUser } from "../auth.js";
+import { AUTH_COOKIE, clearSessionCookie, publicUser } from "../auth.js";
 
 export async function requireAuth(req, res, next) {
   try {

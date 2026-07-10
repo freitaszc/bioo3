@@ -3,7 +3,6 @@ import { Router } from "express";
 import { prisma } from "../prisma.js";
 import { clearSessionCookie, publicUser, setSessionCookie, signSession } from "../auth.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { notifyAdminOfRegistration } from "../services/email.js";
 
 export const authRoutes = Router();
 
@@ -72,8 +71,7 @@ authRoutes.post("/register", async (req, res, next) => {
         }
       });
     }
-    const emailSent = await notifyAdminOfRegistration({ name: clinicName, email });
-    return res.status(201).json({ message: "Cadastro enviado para aprovação.", emailSent });
+    return res.status(201).json({ message: "Cadastro enviado para aprovação. O administrador analisará o acesso na seção de Clínicas." });
   } catch (error) {
     if (error.code === "P2002") return res.status(409).json({ error: "Este e-mail já possui um cadastro." });
     next(error);

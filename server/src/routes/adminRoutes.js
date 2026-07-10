@@ -2,7 +2,6 @@ import { Router } from "express";
 import { prisma } from "../prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireAdmin } from "../clinicScope.js";
-import { notifyClinicDecision } from "../services/email.js";
 
 export const adminRoutes = Router();
 adminRoutes.use(requireAuth, requireAdmin);
@@ -22,9 +21,11 @@ adminRoutes.get("/clinics", async (req, res, next) => {
 adminRoutes.patch("/clinics/:id/approve", async (req, res, next) => {
   try {
     const id = Number(req.params.id);
+    const current = await prisma.clinic.findUnique({ where: { id } });
+    if (!current) return res.status(404).json({ error: "Clínica não encontrada." });
+    if (current.status !== "PENDING") return res.status(409).json({ error: "Somente clínicas pendentes podem ser aprovadas." });
     const clinic = await prisma.clinic.update({ where: { id }, data: { status: "ACTIVE", rejectionReason: "" }, include: includeUser });
-    const emailSent = clinic.user?.email ? await notifyClinicDecision({ name: clinic.name, email: clinic.user.email, approved: true }) : false;
-    return res.json({ clinic, emailSent });
+    return res.json({ clinic });
   } catch (error) { if (error.code === "P2025") return res.status(404).json({ error: "Clínica não encontrada." }); next(error); }
 });
 
@@ -33,9 +34,11 @@ adminRoutes.patch("/clinics/:id/reject", async (req, res, next) => {
     const id = Number(req.params.id);
     const reason = String(req.body?.reason || "").trim();
     if (!reason) return res.status(400).json({ error: "Informe o motivo da rejeição." });
+    const current = await prisma.clinic.findUnique({ where: { id } });
+    if (!current) return res.status(404).json({ error: "Clínica não encontrada." });
+    if (current.status !== "PENDING") return res.status(409).json({ error: "Somente clínicas pendentes podem ser rejeitadas." });
     const clinic = await prisma.clinic.update({ where: { id }, data: { status: "REJECTED", rejectionReason: reason }, include: includeUser });
-    const emailSent = clinic.user?.email ? await notifyClinicDecision({ name: clinic.name, email: clinic.user.email, approved: false, reason }) : false;
-    return res.json({ clinic, emailSent });
+    return res.json({ clinic });
   } catch (error) { if (error.code === "P2025") return res.status(404).json({ error: "Clínica não encontrada." }); next(error); }
 });
 

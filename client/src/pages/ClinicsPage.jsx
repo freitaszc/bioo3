@@ -28,7 +28,7 @@ export default function ClinicsPage() {
 
   async function act(action, success) {
     setError(""); setMessage("");
-    try { const result = await action(); setMessage(`${success}${result?.emailSent === false ? " A alteração foi salva, mas o e-mail não pôde ser enviado." : ""}`); await load(); }
+    try { await action(); setMessage(success); await load(); }
     catch (err) { setError(err.message); }
   }
 
