@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import Topbar from "../components/Topbar";
 import { useAuth } from "../AuthContext";
@@ -38,6 +39,12 @@ const uppercase = (value) => String(value || "").toLocaleUpperCase("pt-BR");
 
 export default function BioO3LabPage() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const linkedPatientParam = searchParams.get("patientId");
+  const linkedClinicParam = searchParams.get("clinicId");
+  const linkedPatientId = linkedPatientParam ? Number(linkedPatientParam) : null;
+  const linkedClinicId = linkedClinicParam ? Number(linkedClinicParam) : null;
+  const [linkedPatient, setLinkedPatient] = useState(null);
   const [mode, setMode] = useState("upload");
   const [manual, setManual] = useState(emptyManual);
   const [fileName, setFileName] = useState("");
@@ -70,6 +77,25 @@ export default function BioO3LabPage() {
   useEffect(() => {
     refreshDoctors().catch(() => setDoctors([]));
   }, []);
+
+  useEffect(() => {
+    if (!Number.isInteger(linkedPatientId)) return;
+    api.patient(linkedPatientId)
+      .then((data) => {
+        const patient = data.patient;
+        setLinkedPatient(patient);
+        setManual({
+          name: patient.name || "",
+          age: patient.age || "",
+          cpf: patient.cpf || "",
+          gender: patient.gender || "",
+          phone: patient.phone || "",
+          doctor: patient.doctorName || "",
+          labResults: ""
+        });
+      })
+      .catch((err) => setError(err.message));
+  }, [linkedPatientId]);
 
   async function saveDoctor(event) {
     event.preventDefault();
@@ -121,7 +147,10 @@ export default function BioO3LabPage() {
     setError("");
     setMessage("");
     try {
-      const response = await api.submitManualLab(manual);
+      const response = await api.submitManualLab({
+        ...manual,
+        ...(Number.isInteger(linkedPatientId) ? { patientId: linkedPatientId, clinicId: linkedClinicId } : {})
+      });
       setMessage(response.message);
       setManual(emptyManual);
     } catch (err) {
@@ -141,7 +170,11 @@ export default function BioO3LabPage() {
     try {
       setUploading(true);
       const data = await fileToDataUrl(selectedFile);
-      const response = await api.previewUploadLab({ filename: selectedFile.name, data });
+      const response = await api.previewUploadLab({
+        filename: selectedFile.name,
+        data,
+        ...(Number.isInteger(linkedPatientId) ? { patientId: linkedPatientId, clinicId: linkedClinicId } : {})
+      });
       setUploadPreview(response);
       setEditingPatient(false);
       setMessage("Dados extraídos. Revise antes de aceitar a análise.");
@@ -162,7 +195,8 @@ export default function BioO3LabPage() {
         previewId: uploadPreview.previewId,
         doctorId: selectedDoctorId,
         patient: uploadPreview.patient || {},
-        values: uploadPreview.values || []
+        values: uploadPreview.values || [],
+        ...(Number.isInteger(linkedPatientId) ? { patientId: linkedPatientId, clinicId: linkedClinicId } : {})
       });
       setAnalysisResult(response);
       setUploadPreview(null);
@@ -340,8 +374,8 @@ export default function BioO3LabPage() {
         <section className="page-heading">
           <div>
             <p className="eyebrow">BioO3 Lab</p>
-            <h1>Análise de exames</h1>
-            <p className="page-subtitle">Análise de exames por entrada manual ou PDF.</p>
+            <h1>{linkedPatient ? `Análise de ${linkedPatient.name}` : "Análise de exames"}</h1>
+            <p className="page-subtitle">{linkedPatient ? "Análise vinculada ao prontuário deste paciente." : "Análise de exames por entrada manual ou PDF."}</p>
           </div>
         </section>
 
@@ -393,11 +427,11 @@ export default function BioO3LabPage() {
             </form>
           ) : (
             <form className="form-grid" onSubmit={submitManual}>
-              <label><span>Nome do paciente</span><input value={manual.name} onChange={(e) => setManual({ ...manual, name: e.target.value })} required /></label>
-              <label><span>Idade</span><input type="number" value={manual.age} onChange={(e) => setManual({ ...manual, age: e.target.value })} required /></label>
-              <label><span>CPF</span><input value={manual.cpf} onChange={(e) => setManual({ ...manual, cpf: e.target.value })} /></label>
-              <label><span>Sexo</span><input value={manual.gender} onChange={(e) => setManual({ ...manual, gender: e.target.value })} /></label>
-              <label><span>Telefone</span><input inputMode="numeric" maxLength="11" value={manual.phone} onChange={(e) => setManual({ ...manual, phone: digitsOnly(e.target.value, 11) })} /></label>
+              <label><span>Nome do paciente</span><input readOnly={Boolean(linkedPatient)} value={manual.name} onChange={(e) => setManual({ ...manual, name: e.target.value })} required /></label>
+              <label><span>Idade</span><input readOnly={Boolean(linkedPatient)} type="number" value={manual.age} onChange={(e) => setManual({ ...manual, age: e.target.value })} required /></label>
+              <label><span>CPF</span><input readOnly={Boolean(linkedPatient)} value={manual.cpf} onChange={(e) => setManual({ ...manual, cpf: e.target.value })} /></label>
+              <label><span>Sexo</span><input readOnly={Boolean(linkedPatient)} value={manual.gender} onChange={(e) => setManual({ ...manual, gender: e.target.value })} /></label>
+              <label><span>Telefone</span><input readOnly={Boolean(linkedPatient)} inputMode="numeric" maxLength="11" value={manual.phone} onChange={(e) => setManual({ ...manual, phone: digitsOnly(e.target.value, 11) })} /></label>
               <label><span>Médico</span><input value={manual.doctor} onChange={(e) => setManual({ ...manual, doctor: e.target.value })} /></label>
               <label className="full-width">
                 <span>Resultados laboratoriais</span>
@@ -422,7 +456,7 @@ export default function BioO3LabPage() {
                 <p>Confirme se os dados do paciente e os valores lidos do PDF estão corretos antes de gerar o resultado.</p>
               </div>
               <div className="doctor-actions">
-                <button className="secondary-button" type="button" onClick={() => setEditingPatient((value) => !value)}>
+                <button className="secondary-button" type="button" onClick={() => setEditingPatient((value) => !value)} disabled={Boolean(linkedPatient)}>
                   {editingPatient ? "Concluir edição" : "Editar dados"}
                 </button>
                 <button className="primary-button action-size-button" type="button" onClick={confirmUploadAnalysis} disabled={uploading}>
@@ -436,8 +470,8 @@ export default function BioO3LabPage() {
             <div className="detail-grid review-detail-grid">
               <div>
                 <span>Paciente</span>
-                {editingPatient ? (
-                  <input value={uploadPreview.patient?.name || ""} onChange={(event) => updatePreviewPatient("name", event.target.value)} />
+                  {editingPatient ? (
+                    <input readOnly={Boolean(linkedPatient)} value={uploadPreview.patient?.name || ""} onChange={(event) => updatePreviewPatient("name", event.target.value)} />
                 ) : (
                   <strong>{uploadPreview.patient?.name || "Não detectado"}</strong>
                 )}
@@ -445,7 +479,7 @@ export default function BioO3LabPage() {
               <div>
                 <span>Idade</span>
                 {editingPatient ? (
-                  <input type="number" min="0" value={uploadPreview.patient?.age || ""} onChange={(event) => updatePreviewPatient("age", event.target.value)} />
+                  <input readOnly={Boolean(linkedPatient)} type="number" min="0" value={uploadPreview.patient?.age || ""} onChange={(event) => updatePreviewPatient("age", event.target.value)} />
                 ) : (
                   <strong>{uploadPreview.patient?.age || "Não detectada"}</strong>
                 )}
@@ -453,7 +487,7 @@ export default function BioO3LabPage() {
               <div>
                 <span>Sexo</span>
                 {editingPatient ? (
-                  <input value={uploadPreview.patient?.gender || ""} onChange={(event) => updatePreviewPatient("gender", event.target.value)} />
+                  <input readOnly={Boolean(linkedPatient)} value={uploadPreview.patient?.gender || ""} onChange={(event) => updatePreviewPatient("gender", event.target.value)} />
                 ) : (
                   <strong>{uploadPreview.patient?.gender || "Não detectado"}</strong>
                 )}
@@ -461,14 +495,14 @@ export default function BioO3LabPage() {
               <div>
                 <span>CPF</span>
                 {editingPatient ? (
-                  <input value={uploadPreview.patient?.cpf || ""} onChange={(event) => updatePreviewPatient("cpf", event.target.value)} />
+                  <input readOnly={Boolean(linkedPatient)} value={uploadPreview.patient?.cpf || ""} onChange={(event) => updatePreviewPatient("cpf", event.target.value)} />
                 ) : (
                   <strong>{uploadPreview.patient?.cpf || "Não detectado"}</strong>
                 )}
               </div>
               <div>
                 <span>Telefone</span>
-                {editingPatient ? <input inputMode="numeric" maxLength="11" value={uploadPreview.patient?.phone || ""} onChange={(event) => updatePreviewPatient("phone", digitsOnly(event.target.value, 11))} /> : <strong>{uploadPreview.patient?.phone || "Não detectado"}</strong>}
+                {editingPatient ? <input readOnly={Boolean(linkedPatient)} inputMode="numeric" maxLength="11" value={uploadPreview.patient?.phone || ""} onChange={(event) => updatePreviewPatient("phone", digitsOnly(event.target.value, 11))} /> : <strong>{uploadPreview.patient?.phone || "Não detectado"}</strong>}
               </div>
             </div>
 

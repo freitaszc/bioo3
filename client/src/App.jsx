@@ -12,6 +12,8 @@ import StockPage from "./pages/StockPage";
 import VideoPage from "./pages/VideoPage";
 import VideosPage from "./pages/VideosPage";
 import ClinicsPage from "./pages/ClinicsPage";
+import PlanTemplatesPage from "./pages/PlanTemplatesPage";
+import ProntuarioPage from "./pages/ProntuarioPage";
 
 function ProtectedRoute({ children }) {
   const { loading, user } = useAuth();
@@ -38,10 +40,12 @@ export default function App() {
       <Route path="/videoaulas/:id" element={<ProtectedRoute><VideoPage /></ProtectedRoute>} />
       <Route path="/bioo3-lab" element={<ProtectedRoute><BioO3LabPage /></ProtectedRoute>} />
       <Route path="/pacientes" element={<ProtectedRoute><PatientsPage /></ProtectedRoute>} />
+      <Route path="/pacientes/:id" element={<ProtectedRoute><ProntuarioPage /></ProtectedRoute>} />
       <Route path="/estoque" element={<ProtectedRoute><StockPage /></ProtectedRoute>} />
       <Route path="/agenda" element={<ProtectedRoute><AgendaPage /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
       <Route path="/admin/clinics" element={<ProtectedRoute><ClinicsPage /></ProtectedRoute>} />
+      <Route path="/admin/plan-templates" element={<ProtectedRoute><PlanTemplatesPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/inicio" replace />} />
     </Routes>
   );

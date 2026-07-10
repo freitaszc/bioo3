@@ -119,6 +119,17 @@ function applyReviewedPatient(extraction, reviewedPatient = {}) {
   };
 }
 
+async function findPatientForAnalysis(patientId, clinicId) {
+  if (!patientId) return null;
+  const patient = await prisma.patient.findFirst({ where: { id: patientId, clinicId } });
+  if (!patient) {
+    const error = new Error("Paciente não encontrado.");
+    error.statusCode = 404;
+    throw error;
+  }
+  return patient;
+}
+
 labRoutes.get("/doctors", async (req, res, next) => {
   try {
     const doctors = await prisma.doctor.findMany({ where: clinicWhere(req), include: { clinic: true }, orderBy: { name: "asc" } });
@@ -211,6 +222,9 @@ labRoutes.post("/manual", async (req, res, next) => {
     const required = ["name", "age", "labResults"];
     const clinicId = selectedClinicId(req, { required: true });
     await requireActiveClinic(prisma, clinicId);
+    const patientId = req.body?.patientId ? Number(req.body.patientId) : null;
+    if (req.body?.patientId && !Number.isInteger(patientId)) return res.status(400).json({ error: "Paciente inválido." });
+    await findPatientForAnalysis(patientId, clinicId);
     const missing = required.filter((field) => !String(req.body?.[field] || "").trim());
     if (missing.length) {
       return res.status(400).json({ error: "Preencha paciente, idade e resultados laboratoriais." });
@@ -220,6 +234,7 @@ labRoutes.post("/manual", async (req, res, next) => {
       data: {
         userId: req.user.id,
         clinicId,
+        patientId,
         source: "manual"
       }
     });
@@ -238,19 +253,34 @@ labRoutes.post("/upload/preview", async (req, res, next) => {
     const { filename, buffer } = getPdfBufferFromBody(req.body);
     const clinicId = selectedClinicId(req, { required: true });
     await requireActiveClinic(prisma, clinicId);
+    const patientId = req.body?.patientId ? Number(req.body.patientId) : null;
+    if (req.body?.patientId && !Number.isInteger(patientId)) return res.status(400).json({ error: "Paciente inválido." });
+    const selectedPatient = await findPatientForAnalysis(patientId, clinicId);
     const references = await readReferences();
     const extraction = await extractPdfBufferToJson(buffer, { source: filename, references });
     const previewId = randomUUID();
 
+    if (selectedPatient) {
+      extraction.patient = {
+        ...extraction.patient,
+        name: selectedPatient.name,
+        age: selectedPatient.age,
+        cpf: selectedPatient.cpf,
+        gender: selectedPatient.gender,
+        phone: selectedPatient.phone
+      };
+    }
+
     pendingPdfAnalyses.set(previewId, {
       userId: req.user.id,
       clinicId,
+      patientId,
       filename,
       extraction,
       createdAt: Date.now()
     });
 
-    return res.status(200).json(previewPayload(previewId, extraction));
+    return res.status(200).json({ ...previewPayload(previewId, extraction), patientId });
   } catch (error) {
     if (error.message?.includes("PDF") || error.message?.includes("Arquivo")) {
       return res.status(400).json({ error: error.message });
@@ -281,17 +311,37 @@ labRoutes.post("/upload/confirm", async (req, res, next) => {
     const texts = buildAnalysisTexts(comparison);
     const patient = reviewedExtraction.patient || {};
     if (patient.phone && !validPhone(patient.phone)) return res.status(400).json({ error: "O telefone do paciente deve ter 10 ou 11 dígitos." });
-    let createdPatientId = null;
+    let createdPatientId = pending.patientId || null;
+    const existingPatient = await findPatientForAnalysis(pending.patientId, pending.clinicId);
 
     await prisma.analysisEvent.create({
       data: {
         userId: req.user.id,
         clinicId: pending.clinicId,
+        patientId: pending.patientId,
         source: "pdf"
       }
     });
 
-    if (patient.name && patient.age) {
+    if (existingPatient) {
+      await prisma.patient.update({
+        where: { id: existingPatient.id },
+        data: { prescription: texts.prescriptionText || existingPatient.prescription }
+      });
+      if (texts.diagnosisText || texts.prescriptionText) {
+        await prisma.consultation.create({
+          data: {
+            patientId: existingPatient.id,
+            clinicId: pending.clinicId,
+            notes: `Diagnóstico:
+${texts.diagnosisText}
+
+Prescrição:
+${texts.prescriptionText}`.trim()
+          }
+        });
+      }
+    } else if (patient.name && patient.age) {
       const createdPatient = await prisma.patient.create({
         data: {
           name: patient.name,

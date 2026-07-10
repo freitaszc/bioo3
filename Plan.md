@@ -17,8 +17,10 @@
 | Prescriber on PDF | Implemented | Name and registration number appear in the printout |
 | Analysis printing | Implemented | Page is ready for printing/PDF |
 | Basic inventory | Implemented | Products, quantities, and prices |
-| Batch, expiration date, supplier, and movements | Pending | Will be part of advanced inventory |
-| Treatment plans | Pending | No database, API, or interface yet |
+| Batch, expiration date, supplier, and movements | Implemented | Advanced inventory records lots, suppliers, movements, linked users, clinics, patients, and plans |
+| Global plan templates | Implemented | Administrator-managed templates with products, routes, frequencies, and sessions |
+| Patient records and Prontuário | Implemented | Dedicated patient page with editable information, clinical history, consultations, and BioO3 Lab access |
+| Patient plans | Implemented | Plans are exclusive to a patient and support quotes, activation, printing, PDF export, completion, and cancellation |
 | Cash register and sales | Pending | No database, API, or interface yet |
 | Receipt and official invoice | Pending | Will require PDF generation and tax integration |
 
@@ -88,6 +90,15 @@
 - No email or SMTP configuration is required for the current approval workflow.
 - Only the administrator can create global templates.
 - The clinic and administrator can create plans for authorized patients.
+- Clicking a patient opens the Prontuário page instead of a detail modal.
+- Patient information is edited from the Prontuário page.
+- Prontuário shows consultations, prescriptions, analyses, and dates.
+- Plans belong exclusively to the selected patient.
+- A BioO3 Lab analysis can be started from the patient’s Prontuário and linked to that patient.
+- Patient plans support quote, activation, printing, PDF export, completion, and cancellation.
+- Inventory supports suppliers, batches, expiration dates, and quantity by batch.
+- Inventory movements preserve user, clinic, patient, plan, date, and reason.
+- Sales and consumption movements warn about insufficient or expired stock without blocking the movement.
 - Sessions and frequency are adjustable.
 - Quotes use inventory prices and preserve historical prices.
 - Discounts, installments, and the 50% split are calculated correctly.

@@ -33,7 +33,12 @@ function serializePatient(patient) {
     doctorId: patient.doctorId,
     doctorName: patient.doctor?.name || "Não informado",
     createdAt: patient.createdAt,
-    consultations: patient.consultations || []
+    consultations: patient.consultations || [],
+    analysisEvents: (patient.analysisEvents || []).map((event) => ({
+      id: event.id,
+      source: event.source,
+      createdAt: event.createdAt
+    }))
     ,clinicId: patient.clinicId
     ,clinicName: patient.clinic?.name || ""
   };
@@ -134,7 +139,8 @@ patientRoutes.get("/:id", async (req, res, next) => {
       where: { id, ...clinicWhere(req) },
       include: {
         doctor: true, clinic: true,
-        consultations: { orderBy: { createdAt: "desc" } }
+        consultations: { orderBy: { createdAt: "desc" } },
+        analysisEvents: { orderBy: { createdAt: "desc" } }
       }
     });
 
@@ -182,7 +188,8 @@ patientRoutes.put("/:id", async (req, res, next) => {
       },
       include: {
         doctor: true, clinic: true,
-        consultations: { orderBy: { createdAt: "desc" } }
+        consultations: { orderBy: { createdAt: "desc" } },
+        analysisEvents: { orderBy: { createdAt: "desc" } }
       }
     });
 

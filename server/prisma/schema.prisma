@@ -19,6 +19,7 @@ model User {
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   analysisEvents   AnalysisEvent[]
+  stockMovements   StockMovement[]
   role             String          @default("CLINIC")
   clinicId         Int?            @unique
   clinic           Clinic?         @relation(fields: [clinicId], references: [id], onDelete: SetNull)
@@ -38,6 +39,10 @@ model Clinic {
   products        Product[]
   agendaEvents    AgendaEvent[]
   consultations   Consultation[]
+  patientPlans    PatientPlan[]
+  suppliers       Supplier[]
+  stockLots       StockLot[]
+  stockMovements  StockMovement[]
 
   @@index([name])
   @@index([status])
@@ -46,14 +51,17 @@ model Clinic {
 model AnalysisEvent {
   id        Int      @id @default(autoincrement())
   userId    Int?
+  patientId Int?
   source    String   @default("pdf")
   createdAt DateTime @default(now())
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  patient   Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
   clinicId  Int
   clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
   @@index([createdAt])
   @@index([userId])
+  @@index([patientId])
   @@index([clinicId])
 }
 
@@ -106,6 +114,9 @@ model Patient {
   updatedAt     DateTime       @updatedAt
   doctor        Doctor?        @relation(fields: [doctorId], references: [id], onDelete: SetNull)
   consultations Consultation[]
+  analysisEvents AnalysisEvent[]
+  patientPlans  PatientPlan[]
+  stockMovements StockMovement[]
   clinicId      Int
   clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
@@ -141,10 +152,150 @@ model Product {
   updatedAt     DateTime @updatedAt
   clinicId      Int
   clinic        Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  stockLots     StockLot[]
+  stockMovements StockMovement[]
 
   @@index([name])
   @@index([status])
   @@index([clinicId])
+}
+
+model PlanTemplate {
+  id          Int                @id @default(autoincrement())
+  name        String
+  description String             @default("")
+  frequency   String
+  sessions    Int                @default(4)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  items       PlanTemplateItem[]
+  patientPlans PatientPlan[]
+
+  @@index([name])
+}
+
+model PlanTemplateItem {
+  id          Int         @id @default(autoincrement())
+  templateId  Int
+  productName String
+  route       String
+  quantity    Int
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  template    PlanTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+}
+
+model PatientPlan {
+  id          Int          @id @default(autoincrement())
+  patientId   Int
+  clinicId    Int
+  templateId  Int?
+  name        String
+  description String       @default("")
+  frequency   String
+  sessions    Int
+  status      String       @default("QUOTE")
+  items       Json
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  patient     Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinic      Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  template    PlanTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  planSessions PlanSession[]
+  stockMovements StockMovement[]
+
+  @@index([patientId])
+  @@index([clinicId])
+  @@index([templateId])
+  @@index([status])
+}
+
+model PlanSession {
+  id            Int         @id @default(autoincrement())
+  patientPlanId Int
+  number        Int
+  status        String      @default("PENDING")
+  scheduledAt   DateTime?
+  completedAt   DateTime?
+  notes         String      @default("")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  patientPlan   PatientPlan @relation(fields: [patientPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([patientPlanId, number])
+  @@index([patientPlanId])
+  @@index([status])
+}
+
+model Supplier {
+  id        Int       @id @default(autoincrement())
+  name      String
+  contact   String    @default("")
+  phone     String    @default("")
+  email     String    @default("")
+  notes     String    @default("")
+  clinicId  Int
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  clinic    Clinic    @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  stockLots StockLot[]
+
+  @@unique([clinicId, name])
+  @@index([clinicId])
+  @@index([name])
+}
+
+model StockLot {
+  id           Int             @id @default(autoincrement())
+  productId    Int
+  clinicId     Int
+  supplierId   Int?
+  batchNumber  String
+  expiresAt    DateTime?
+  quantity     Int             @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  product      Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  clinic       Clinic          @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  supplier     Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  movements    StockMovement[]
+
+  @@unique([productId, batchNumber])
+  @@index([clinicId])
+  @@index([productId])
+  @@index([supplierId])
+  @@index([expiresAt])
+}
+
+model StockMovement {
+  id            Int          @id @default(autoincrement())
+  productId     Int
+  clinicId      Int
+  lotId         Int?
+  userId        Int?
+  patientId     Int?
+  patientPlanId Int?
+  type          String
+  quantity      Int
+  reason        String       @default("")
+  createdAt     DateTime     @default(now())
+  product       Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  clinic        Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  lot           StockLot?    @relation(fields: [lotId], references: [id], onDelete: SetNull)
+  user          User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  patient       Patient?     @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  patientPlan   PatientPlan? @relation(fields: [patientPlanId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([clinicId])
+  @@index([lotId])
+  @@index([userId])
+  @@index([patientId])
+  @@index([patientPlanId])
+  @@index([type])
+  @@index([createdAt])
 }
 
 model AgendaEvent {

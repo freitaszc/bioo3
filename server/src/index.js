@@ -11,6 +11,9 @@ import { dashboardRoutes } from "./routes/dashboardRoutes.js";
 import { labRoutes } from "./routes/labRoutes.js";
 import { patientRoutes } from "./routes/patientRoutes.js";
 import { productRoutes } from "./routes/productRoutes.js";
+import { planTemplateRoutes } from "./routes/planTemplateRoutes.js";
+import { patientPlanRoutes } from "./routes/patientPlanRoutes.js";
+import { inventoryRoutes } from "./routes/inventoryRoutes.js";
 import { videoRoutes } from "./routes/videoRoutes.js";
 import { adminRoutes } from "./routes/adminRoutes.js";
 
@@ -68,6 +71,9 @@ app.use("/api/videos", videoRoutes);
 app.use("/api/lab", labRoutes);
 app.use("/api/patients", patientRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/plan-templates", planTemplateRoutes);
+app.use("/api/patient-plans", patientPlanRoutes);
+app.use("/api/inventory", inventoryRoutes);
 app.use("/api/agenda", agendaRoutes);
 
 // Serve client build in production

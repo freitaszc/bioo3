@@ -2,7 +2,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 let clinicScope = localStorage.getItem("bioo3_clinic_scope") || "";
 
 function scopedPath(path) {
-  const operational = ["/dashboard", "/patients", "/products", "/agenda", "/lab"];
+  const operational = ["/dashboard", "/patients", "/products", "/agenda", "/lab", "/inventory"];
   if (!clinicScope || !operational.some((prefix) => path.startsWith(prefix))) return path;
   const separator = path.includes("?") ? "&" : "?";
   return `${path}${separator}clinicId=${encodeURIComponent(clinicScope)}`;
@@ -74,6 +74,23 @@ export const api = {
     method: "POST",
     body: JSON.stringify(payload)
   }),
+  patientPlans: (patientId) => request(`/patient-plans?patientId=${encodeURIComponent(patientId)}`),
+  createPatientPlan: (payload) => request("/patient-plans", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  }),
+  updatePatientPlan: (id, payload) => request(`/patient-plans/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  }),
+  updatePatientPlanStatus: (id, status) => request(`/patient-plans/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status })
+  }),
+  updatePlanSession: (planId, sessionNumber, status) => request(`/patient-plans/${planId}/sessions/${sessionNumber}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status })
+  }),
   products: (params = {}) => {
     const query = new URLSearchParams();
     if (params.search) query.set("search", params.search);
@@ -99,6 +116,23 @@ export const api = {
     method: "POST",
     body: JSON.stringify({ ids })
   }),
+  suppliers: () => request("/inventory/suppliers"),
+  createSupplier: (payload) => request("/inventory/suppliers", { method: "POST", body: JSON.stringify(payload) }),
+  updateSupplier: (id, payload) => request(`/inventory/suppliers/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteSupplier: (id) => request(`/inventory/suppliers/${id}`, { method: "DELETE" }),
+  stockLots: (params = {}) => {
+    const query = params.productId ? `?productId=${encodeURIComponent(params.productId)}` : "";
+    return request(`/inventory/lots${query}`);
+  },
+  createStockLot: (payload) => request("/inventory/lots", { method: "POST", body: JSON.stringify(payload) }),
+  stockMovements: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.productId) query.set("productId", params.productId);
+    if (params.type) query.set("type", params.type);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return request(`/inventory/movements${suffix}`);
+  },
+  createStockMovement: (payload) => request("/inventory/movements", { method: "POST", body: JSON.stringify(payload) }),
   agendaEvents: (month) => request(`/agenda${month ? `?month=${month}` : ""}`),
   createAgendaEvent: (payload) => request("/agenda", {
     method: "POST",
@@ -144,5 +178,15 @@ export const api = {
   approveClinic: (id) => request(`/admin/clinics/${id}/approve`, { method: "PATCH" }),
   rejectClinic: (id, reason) => request(`/admin/clinics/${id}/reject`, { method: "PATCH", body: JSON.stringify({ reason }) }),
   setClinicStatus: (id, status) => request(`/admin/clinics/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
-  setClinicEmail: (id, email) => request(`/admin/clinics/${id}/email`, { method: "PATCH", body: JSON.stringify({ email }) })
+  setClinicEmail: (id, email) => request(`/admin/clinics/${id}/email`, { method: "PATCH", body: JSON.stringify({ email }) }),
+  planTemplates: () => request("/plan-templates"),
+  createPlanTemplate: (payload) => request("/plan-templates", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  }),
+  updatePlanTemplate: (id, payload) => request(`/plan-templates/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  }),
+  deletePlanTemplate: (id) => request(`/plan-templates/${id}`, { method: "DELETE" })
 };
