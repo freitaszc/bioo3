@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { clinicWhere, selectedClinicId } from "../clinicScope.js";
 
 export const dashboardRoutes = Router();
 
@@ -16,12 +17,11 @@ dashboardRoutes.get("/analysis-counts", requireAuth, async (req, res, next) => {
     start.setDate(start.getDate() - (days - 1));
 
     const events = await prisma.analysisEvent.findMany({
-      where: { createdAt: { gte: start } },
+      where: { createdAt: { gte: start }, ...clinicWhere(req) },
       select: { createdAt: true }
     });
-    const usedByAccount = await prisma.analysisEvent.count({
-      where: { userId: req.user.id }
-    });
+    const clinicId = selectedClinicId(req);
+    const usedByClinic = clinicId ? await prisma.analysisEvent.count({ where: { clinicId } }) : null;
 
     const counts = new Map();
     for (const event of events) {
@@ -45,7 +45,7 @@ dashboardRoutes.get("/analysis-counts", requireAuth, async (req, res, next) => {
     return res.json({
       days: series,
       total: series.reduce((sum, item) => sum + item.count, 0),
-      remainingAnalyses: Math.max(DEFAULT_ANALYSIS_QUOTA - usedByAccount, 0)
+      remainingAnalyses: usedByClinic === null ? null : Math.max(DEFAULT_ANALYSIS_QUOTA - usedByClinic, 0)
     });
   } catch (error) {
     next(error);

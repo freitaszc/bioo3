@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { clinicWhere, handleScopeError, requireActiveClinic, selectedClinicId } from "../clinicScope.js";
 
 export const productRoutes = Router();
 
@@ -16,6 +17,8 @@ function serializeProduct(product) {
     salePrice: Number(product.salePrice),
     status: product.status,
     createdAt: product.createdAt
+    ,clinicId: product.clinicId
+    ,clinicName: product.clinic?.name || ""
   };
 }
 
@@ -39,8 +42,10 @@ productRoutes.get("/", async (req, res, next) => {
       where: {
         ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
         ...(status ? { status } : {}),
-        ...(stock === "in_stock" ? { quantity: { gt: 0 } } : {})
+        ...(stock === "in_stock" ? { quantity: { gt: 0 } } : {}),
+        ...clinicWhere(req)
       },
+      include: { clinic: true },
       orderBy: [{ name: "asc" }, { id: "asc" }]
     });
 
@@ -57,11 +62,13 @@ productRoutes.get("/", async (req, res, next) => {
 productRoutes.post("/", async (req, res, next) => {
   try {
     const input = normalizeProductInput(req.body);
+    const clinicId = selectedClinicId(req, { required: true });
+    await requireActiveClinic(prisma, clinicId);
     if (!input.name) {
       return res.status(400).json({ error: "Nome do produto é obrigatório." });
     }
 
-    const product = await prisma.product.create({ data: input });
+    const product = await prisma.product.create({ data: { ...input, clinicId }, include: { clinic: true } });
     return res.status(201).json({ product: serializeProduct(product) });
   } catch (error) {
     next(error);
@@ -77,8 +84,9 @@ productRoutes.put("/:id", async (req, res, next) => {
     }
 
     const product = await prisma.product.update({
-      where: { id },
-      data: input
+      where: { id, ...clinicWhere(req) },
+      data: input,
+      include: { clinic: true }
     });
     return res.json({ product: serializeProduct(product) });
   } catch (error) {
@@ -97,7 +105,7 @@ productRoutes.patch("/:id/status", async (req, res, next) => {
       return res.status(400).json({ error: "Status inválido." });
     }
 
-    const product = await prisma.product.update({ where: { id }, data: { status } });
+    const product = await prisma.product.update({ where: { id, ...clinicWhere(req) }, data: { status }, include: { clinic: true } });
     return res.json({ product: serializeProduct(product) });
   } catch (error) {
     if (error.code === "P2025") {
@@ -114,7 +122,7 @@ productRoutes.post("/bulk-delete", async (req, res, next) => {
       return res.status(400).json({ error: "Selecione pelo menos um produto." });
     }
 
-    const result = await prisma.product.deleteMany({ where: { id: { in: ids } } });
+    const result = await prisma.product.deleteMany({ where: { id: { in: ids }, ...clinicWhere(req) } });
     return res.json({ deletedCount: result.count });
   } catch (error) {
     next(error);
@@ -128,12 +136,13 @@ productRoutes.delete("/:id", async (req, res, next) => {
       return res.status(400).json({ error: "Produto inválido." });
     }
 
-    await prisma.product.delete({ where: { id } });
+    const result = await prisma.product.deleteMany({ where: { id, ...clinicWhere(req) } });
+    if (!result.count) return res.status(404).json({ error: "Produto não encontrado." });
     return res.status(204).send();
   } catch (error) {
     if (error.code === "P2025") {
       return res.status(404).json({ error: "Produto não encontrado." });
     }
-    next(error);
+    handleScopeError(error, res, next);
   }
 });

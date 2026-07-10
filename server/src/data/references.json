@@ -150,7 +150,7 @@
     }
   },
   "25-hidroxi D3": {
-    "ideal": "25-60 ng/mL",
+    "ideal": "60-100 ng/mL",
     "medications": {
       "low": [
         {
@@ -960,35 +960,6 @@
       "gama glutamil transferase",
       "gama gt",
       "ggt"
-    ]
-  },
-  "TGO (AST)": {
-    "ideal": "10-20 U/L",
-    "medications": {
-      "low": [
-        {
-          "nome": "Lipomic",
-          "preparo": "Aspirar o líquido na seringa e não ultrapassar 5ml por aplicação. Aplicação em região sadia do glúteo.",
-          "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
-        },
-        {
-          "nome": "Trio Detox (IM)",
-          "preparo": "Diluir conforme orientação do fabricante.",
-          "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
-        },
-        {
-          "nome": "Morusil (IM)",
-          "preparo": "Diluir conforme orientação do fabricante.",
-          "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
-        }
-      ],
-      "high": ""
-    },
-    "synonyms": [
-      "transaminase - tgo",
-      "transaminase tgo",
-      "tgo",
-      "ast"
     ]
   },
   "TGP (ALT)": {

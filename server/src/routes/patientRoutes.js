@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { prisma } from "../prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { clinicWhere, handleScopeError, requireActiveClinic, selectedClinicId } from "../clinicScope.js";
+import { digitsOnly, validPhone } from "../inputSanitizers.js";
 
 export const patientRoutes = Router();
 
@@ -11,7 +13,7 @@ function normalizePatientInput(body) {
   const age = Number(body?.age);
   const cpf = String(body?.cpf || "").trim();
   const gender = String(body?.gender || "").trim();
-  const phone = String(body?.phone || "").trim();
+  const phone = digitsOnly(body?.phone, 11);
   const prescription = String(body?.prescription || "").trim();
   const doctorId = body?.doctorId ? Number(body.doctorId) : null;
 
@@ -32,15 +34,17 @@ function serializePatient(patient) {
     doctorName: patient.doctor?.name || "Não informado",
     createdAt: patient.createdAt,
     consultations: patient.consultations || []
+    ,clinicId: patient.clinicId
+    ,clinicName: patient.clinic?.name || ""
   };
 }
 
-async function ensureDoctor(doctorId) {
+async function ensureDoctor(doctorId, clinicId) {
   if (!doctorId) return null;
   if (!Number.isInteger(doctorId)) {
     throw new Error("Médico inválido.");
   }
-  const doctor = await prisma.doctor.findUnique({ where: { id: doctorId } });
+  const doctor = await prisma.doctor.findFirst({ where: { id: doctorId, clinicId } });
   if (!doctor) {
     throw new Error("Médico não encontrado.");
   }
@@ -55,9 +59,10 @@ patientRoutes.get("/", async (req, res, next) => {
     const patients = await prisma.patient.findMany({
       where: {
         ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
-        ...(status ? { status } : {})
+        ...(status ? { status } : {}),
+        ...clinicWhere(req)
       },
-      include: { doctor: true },
+      include: { doctor: true, clinic: true },
       orderBy: [{ name: "asc" }, { id: "asc" }]
     });
 
@@ -70,13 +75,16 @@ patientRoutes.get("/", async (req, res, next) => {
 patientRoutes.post("/", async (req, res, next) => {
   try {
     const input = normalizePatientInput(req.body);
+    const clinicId = selectedClinicId(req, { required: true });
+    await requireActiveClinic(prisma, clinicId);
     if (!input.name || !Number.isInteger(input.age) || input.age < 0) {
       return res.status(400).json({ error: "Preencha nome e idade do paciente." });
     }
+    if (input.phone && !validPhone(input.phone)) return res.status(400).json({ error: "Telefone deve ter 10 ou 11 dígitos." });
 
     let doctorId;
     try {
-      doctorId = await ensureDoctor(input.doctorId);
+      doctorId = await ensureDoctor(input.doctorId, clinicId);
     } catch (error) {
       return res.status(400).json({ error: error.message });
     }
@@ -89,9 +97,10 @@ patientRoutes.post("/", async (req, res, next) => {
         gender: input.gender,
         phone: input.phone,
         prescription: input.prescription,
-        doctorId
+        doctorId,
+        clinicId
       },
-      include: { doctor: true }
+      include: { doctor: true, clinic: true }
     });
 
     return res.status(201).json({ patient: serializePatient(patient) });
@@ -107,7 +116,7 @@ patientRoutes.post("/bulk-delete", async (req, res, next) => {
       return res.status(400).json({ error: "Selecione pelo menos um paciente." });
     }
 
-    const result = await prisma.patient.deleteMany({ where: { id: { in: ids } } });
+    const result = await prisma.patient.deleteMany({ where: { id: { in: ids }, ...clinicWhere(req) } });
     return res.json({ deletedCount: result.count });
   } catch (error) {
     next(error);
@@ -121,10 +130,10 @@ patientRoutes.get("/:id", async (req, res, next) => {
       return res.status(400).json({ error: "Paciente inválido." });
     }
 
-    const patient = await prisma.patient.findUnique({
-      where: { id },
+    const patient = await prisma.patient.findFirst({
+      where: { id, ...clinicWhere(req) },
       include: {
-        doctor: true,
+        doctor: true, clinic: true,
         consultations: { orderBy: { createdAt: "desc" } }
       }
     });
@@ -149,16 +158,19 @@ patientRoutes.put("/:id", async (req, res, next) => {
     if (!input.name || !Number.isInteger(input.age) || input.age < 0) {
       return res.status(400).json({ error: "Preencha nome e idade do paciente." });
     }
+    if (input.phone && !validPhone(input.phone)) return res.status(400).json({ error: "Telefone deve ter 10 ou 11 dígitos." });
 
     let doctorId;
     try {
-      doctorId = await ensureDoctor(input.doctorId);
+      const current = await prisma.patient.findFirst({ where: { id, ...clinicWhere(req) } });
+      if (!current) return res.status(404).json({ error: "Paciente não encontrado." });
+      doctorId = await ensureDoctor(input.doctorId, current.clinicId);
     } catch (error) {
       return res.status(400).json({ error: error.message });
     }
 
     const patient = await prisma.patient.update({
-      where: { id },
+      where: { id, ...clinicWhere(req) },
       data: {
         name: input.name,
         age: input.age,
@@ -169,7 +181,7 @@ patientRoutes.put("/:id", async (req, res, next) => {
         doctorId
       },
       include: {
-        doctor: true,
+        doctor: true, clinic: true,
         consultations: { orderBy: { createdAt: "desc" } }
       }
     });
@@ -192,9 +204,9 @@ patientRoutes.patch("/:id/status", async (req, res, next) => {
     }
 
     const patient = await prisma.patient.update({
-      where: { id },
+      where: { id, ...clinicWhere(req) },
       data: { status },
-      include: { doctor: true }
+      include: { doctor: true, clinic: true }
     });
 
     return res.json({ patient: serializePatient(patient) });
@@ -214,8 +226,10 @@ patientRoutes.post("/:id/consultations", async (req, res, next) => {
       return res.status(400).json({ error: "Informe as observações da consulta." });
     }
 
+    const patient = await prisma.patient.findFirst({ where: { id: patientId, ...clinicWhere(req) } });
+    if (!patient) return res.status(404).json({ error: "Paciente não encontrado." });
     const consultation = await prisma.consultation.create({
-      data: { patientId, notes }
+      data: { patientId, notes, clinicId: patient.clinicId }
     });
 
     return res.status(201).json({ consultation });
@@ -234,12 +248,13 @@ patientRoutes.delete("/:id", async (req, res, next) => {
       return res.status(400).json({ error: "Paciente inválido." });
     }
 
-    await prisma.patient.delete({ where: { id } });
+    const result = await prisma.patient.deleteMany({ where: { id, ...clinicWhere(req) } });
+    if (!result.count) return res.status(404).json({ error: "Paciente não encontrado." });
     return res.status(204).send();
   } catch (error) {
     if (error.code === "P2025") {
       return res.status(404).json({ error: "Paciente não encontrado." });
     }
-    next(error);
+    handleScopeError(error, res, next);
   }
 });

@@ -30,13 +30,14 @@ accountRoutes.put("/profile", async (req, res, next) => {
       data: {
         firstName,
         secondName,
-        email: emailRaw || null,
+        ...(req.user.role === "ADMIN" ? { email: emailRaw || null, username: emailRaw || req.user.username } : {}),
         profileImagePath: profileImagePath || "/assets/user-icon.png",
         birthdate
       }
     });
 
-    return res.json({ user: publicUser(user) });
+    const withClinic = await prisma.user.findUnique({ where: { id: user.id }, include: { clinic: true } });
+    return res.json({ user: publicUser(withClinic) });
   } catch (error) {
     if (error.code === "P2002") {
       return res.status(409).json({ error: "Este e-mail já está em uso." });
@@ -74,4 +75,3 @@ accountRoutes.put("/password", async (req, res, next) => {
     next(error);
   }
 });
-

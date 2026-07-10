@@ -12,6 +12,7 @@ import { labRoutes } from "./routes/labRoutes.js";
 import { patientRoutes } from "./routes/patientRoutes.js";
 import { productRoutes } from "./routes/productRoutes.js";
 import { videoRoutes } from "./routes/videoRoutes.js";
+import { adminRoutes } from "./routes/adminRoutes.js";
 
 dotenv.config();
 
@@ -61,6 +62,7 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/account", accountRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/videos", videoRoutes);
 app.use("/api/lab", labRoutes);
@@ -79,7 +81,7 @@ app.get("*", (_req, res) => {
 
 app.use((error, _req, res, _next) => {
   console.error(error);
-  res.status(500).json({ error: "Erro interno do servidor." });
+  res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : "Erro interno do servidor." });
 });
 
 const host = process.env.HOST || "0.0.0.0";

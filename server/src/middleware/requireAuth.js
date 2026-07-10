@@ -15,11 +15,15 @@ export async function requireAuth(req, res, next) {
       return res.status(401).json({ error: "Invalid session." });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({ where: { id: userId }, include: { clinic: true } });
     if (!user) {
       return res.status(401).json({ error: "User not found." });
     }
 
+    if (user.role === "CLINIC" && user.clinic?.status !== "ACTIVE") {
+      clearSessionCookie(res);
+      return res.status(403).json({ error: "Acesso da clínica não está ativo." });
+    }
     req.user = user;
     req.publicUser = publicUser(user);
     next();
@@ -27,4 +31,3 @@ export async function requireAuth(req, res, next) {
     return res.status(401).json({ error: "Invalid or expired session." });
   }
 }
-

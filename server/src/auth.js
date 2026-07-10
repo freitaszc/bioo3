@@ -11,7 +11,15 @@ export function publicUser(user) {
     secondName: user.secondName,
     birthdate: user.birthdate ? user.birthdate.toISOString().slice(0, 10) : "",
     email: user.email || "",
-    profileImagePath: user.profileImagePath || "/assets/user-icon.png"
+    profileImagePath: user.profileImagePath || "/assets/user-icon.png",
+    role: user.role,
+    clinicId: user.clinicId,
+    clinic: user.clinic ? {
+      id: user.clinic.id,
+      name: user.clinic.name,
+      status: user.clinic.status,
+      rejectionReason: user.clinic.rejectionReason
+    } : null
   };
 }
 
@@ -22,7 +30,7 @@ export function signSession(user) {
   }
 
   return jwt.sign(
-    { sub: String(user.id), username: user.username },
+    { sub: String(user.id) },
     secret,
     { expiresIn: `${SESSION_DAYS}d` }
   );
@@ -46,4 +54,3 @@ export function clearSessionCookie(res) {
     path: "/"
   });
 }
-

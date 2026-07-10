@@ -5,6 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { prisma } from "../prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { clinicWhere, requireActiveClinic, requireAdmin, selectedClinicId } from "../clinicScope.js";
+import { councilType as sanitizeCouncilType, digitsOnly, uppercaseText, validPhone } from "../inputSanitizers.js";
 import {
   buildAnalysisTexts,
   compareExtractedValuesToReferences,
@@ -20,7 +22,12 @@ const referencesPath = path.resolve(__dirname, "../data/references.json");
 labRoutes.use(requireAuth);
 
 async function readReferences() {
-  return JSON.parse(await readFile(referencesPath, "utf8"));
+  const references = JSON.parse(await readFile(referencesPath, "utf8"));
+  const overrides = await prisma.referenceOverride.findMany();
+  for (const override of overrides) {
+    if (references[override.testName]) references[override.testName].ideal = override.ideal;
+  }
+  return references;
 }
 
 function getPdfBufferFromBody(body) {
@@ -68,7 +75,17 @@ function applyReviewedValues(extraction, reviewedValues = []) {
     values: { ...(extraction.values || {}) }
   };
 
-  for (const reviewed of reviewedValues) {
+  const reviewedByTestName = new Map(
+    reviewedValues
+      .map((reviewed) => [String(reviewed?.testName || "").trim(), reviewed])
+      .filter(([testName]) => testName)
+  );
+
+  for (const testName of Object.keys(nextExtraction.values)) {
+    if (!reviewedByTestName.has(testName)) delete nextExtraction.values[testName];
+  }
+
+  for (const reviewed of reviewedByTestName.values()) {
     const testName = String(reviewed?.testName || "").trim();
     const value = Number(reviewed?.value);
     if (!testName || !Number.isFinite(value) || !nextExtraction.values[testName]) continue;
@@ -96,45 +113,104 @@ function applyReviewedPatient(extraction, reviewedPatient = {}) {
       age: Number.isFinite(age) ? age : 0,
       gender: String(reviewedPatient?.gender ?? currentPatient.gender ?? "").trim(),
       cpf: String(reviewedPatient?.cpf ?? currentPatient.cpf ?? "").trim(),
-      phone: String(reviewedPatient?.phone ?? currentPatient.phone ?? "").trim(),
+      phone: digitsOnly(reviewedPatient?.phone ?? currentPatient.phone, 11),
       doctor: String(reviewedPatient?.doctor ?? currentPatient.doctor ?? "").trim()
     }
   };
 }
 
-labRoutes.get("/doctors", async (_req, res, next) => {
+labRoutes.get("/doctors", async (req, res, next) => {
   try {
-    const doctors = await prisma.doctor.findMany({ orderBy: { name: "asc" } });
+    const doctors = await prisma.doctor.findMany({ where: clinicWhere(req), include: { clinic: true }, orderBy: { name: "asc" } });
     return res.json({ doctors });
   } catch (error) {
     next(error);
   }
 });
 
+labRoutes.get("/references", async (req, res, next) => {
+  try {
+    const base = JSON.parse(await readFile(referencesPath, "utf8"));
+    const effective = await readReferences();
+    const references = Object.keys(base).sort((a, b) => a.localeCompare(b, "pt-BR")).map((testName) => ({
+      testName,
+      ideal: typeof effective[testName].ideal === "string" ? effective[testName].ideal : JSON.stringify(effective[testName].ideal),
+      defaultIdeal: typeof base[testName].ideal === "string" ? base[testName].ideal : JSON.stringify(base[testName].ideal)
+    }));
+    return res.json({ references });
+  } catch (error) { next(error); }
+});
+
+labRoutes.put("/references/:testName", requireAdmin, async (req, res, next) => {
+  try {
+    const testName = decodeURIComponent(req.params.testName);
+    const ideal = String(req.body?.ideal || "").trim();
+    const base = JSON.parse(await readFile(referencesPath, "utf8"));
+    if (!base[testName]) return res.status(404).json({ error: "Referência não encontrada." });
+    if (!ideal) return res.status(400).json({ error: "Informe o valor ideal." });
+    const reference = await prisma.referenceOverride.upsert({
+      where: { testName }, update: { ideal }, create: { testName, ideal }
+    });
+    return res.json({ reference });
+  } catch (error) { next(error); }
+});
+
 labRoutes.post("/doctors", async (req, res, next) => {
   try {
-    const name = String(req.body?.name || "").trim();
-    const phone = String(req.body?.phone || "").trim();
+    const name = uppercaseText(req.body?.name);
+    const phone = digitsOnly(req.body?.phone, 11);
+    const councilType = sanitizeCouncilType(req.body?.councilType);
+    const councilNumber = digitsOnly(req.body?.councilNumber, 12);
+    const clinicId = selectedClinicId(req, { required: true });
+    await requireActiveClinic(prisma, clinicId);
 
-    if (!name) {
-      return res.status(400).json({ error: "Nome do prescritor é obrigatório." });
+    if (name.length < 2 || !validPhone(phone) || councilType.length < 2 || councilNumber.length < 3) {
+      return res.status(400).json({ error: "Informe nome, telefone com 10 ou 11 dígitos, tipo de conselho e número do conselho." });
     }
 
     const doctor = await prisma.doctor.upsert({
-      where: { name },
-      update: { phone },
-      create: { name, phone }
+      where: { clinicId_name: { clinicId, name } },
+      update: { phone, councilType, councilNumber },
+      create: { name, phone, councilType, councilNumber, clinicId }
     });
 
     return res.status(201).json({ doctor });
   } catch (error) {
+    if (error.code === "P2002") return res.status(409).json({ error: "Já existe um prescritor com este nome." });
     next(error);
   }
+});
+
+labRoutes.put("/doctors/:id", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const name = uppercaseText(req.body?.name);
+    const phone = digitsOnly(req.body?.phone, 11);
+    const councilType = sanitizeCouncilType(req.body?.councilType);
+    const councilNumber = digitsOnly(req.body?.councilNumber, 12);
+    if (!Number.isInteger(id) || name.length < 2 || !validPhone(phone) || councilType.length < 2 || councilNumber.length < 3) {
+      return res.status(400).json({ error: "Preencha corretamente todos os campos do prescritor." });
+    }
+    const doctor = await prisma.doctor.update({ where: { id, ...clinicWhere(req) }, data: { name, phone, councilType, councilNumber } });
+    return res.json({ doctor });
+  } catch (error) { if (error.code === "P2025") return res.status(404).json({ error: "Prescritor não encontrado." }); if (error.code === "P2002") return res.status(409).json({ error: "Já existe um prescritor com este nome." }); next(error); }
+});
+
+labRoutes.delete("/doctors/:id", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: "Prescritor inválido." });
+    const result = await prisma.doctor.deleteMany({ where: { id, ...clinicWhere(req) } });
+    if (!result.count) return res.status(404).json({ error: "Prescritor não encontrado." });
+    return res.status(204).send();
+  } catch (error) { next(error); }
 });
 
 labRoutes.post("/manual", async (req, res, next) => {
   try {
     const required = ["name", "age", "labResults"];
+    const clinicId = selectedClinicId(req, { required: true });
+    await requireActiveClinic(prisma, clinicId);
     const missing = required.filter((field) => !String(req.body?.[field] || "").trim());
     if (missing.length) {
       return res.status(400).json({ error: "Preencha paciente, idade e resultados laboratoriais." });
@@ -143,6 +219,7 @@ labRoutes.post("/manual", async (req, res, next) => {
     await prisma.analysisEvent.create({
       data: {
         userId: req.user.id,
+        clinicId,
         source: "manual"
       }
     });
@@ -159,11 +236,15 @@ labRoutes.post("/manual", async (req, res, next) => {
 labRoutes.post("/upload/preview", async (req, res, next) => {
   try {
     const { filename, buffer } = getPdfBufferFromBody(req.body);
-    const extraction = await extractPdfBufferToJson(buffer, { source: filename });
+    const clinicId = selectedClinicId(req, { required: true });
+    await requireActiveClinic(prisma, clinicId);
+    const references = await readReferences();
+    const extraction = await extractPdfBufferToJson(buffer, { source: filename, references });
     const previewId = randomUUID();
 
     pendingPdfAnalyses.set(previewId, {
       userId: req.user.id,
+      clinicId,
       filename,
       extraction,
       createdAt: Date.now()
@@ -182,10 +263,14 @@ labRoutes.post("/upload/confirm", async (req, res, next) => {
   try {
     const previewId = String(req.body?.previewId || "").trim();
     const pending = pendingPdfAnalyses.get(previewId);
+    const clinicId = selectedClinicId(req, { required: true });
+    const doctorId = Number(req.body?.doctorId);
 
-    if (!pending || pending.userId !== req.user.id) {
+    if (!pending || pending.userId !== req.user.id || pending.clinicId !== clinicId) {
       return res.status(404).json({ error: "Prévia da análise não encontrada. Envie o PDF novamente." });
     }
+    const doctor = await prisma.doctor.findFirst({ where: { id: doctorId, clinicId } });
+    if (!doctor || !doctor.councilType || !doctor.councilNumber) return res.status(400).json({ error: "Selecione um prescritor com CR cadastrado." });
 
     const reviewedExtraction = applyReviewedValues(
       applyReviewedPatient(pending.extraction, req.body?.patient || {}),
@@ -195,10 +280,13 @@ labRoutes.post("/upload/confirm", async (req, res, next) => {
     const comparison = compareExtractedValuesToReferences(reviewedExtraction, references);
     const texts = buildAnalysisTexts(comparison);
     const patient = reviewedExtraction.patient || {};
+    if (patient.phone && !validPhone(patient.phone)) return res.status(400).json({ error: "O telefone do paciente deve ter 10 ou 11 dígitos." });
+    let createdPatientId = null;
 
     await prisma.analysisEvent.create({
       data: {
         userId: req.user.id,
+        clinicId: pending.clinicId,
         source: "pdf"
       }
     });
@@ -211,14 +299,18 @@ labRoutes.post("/upload/confirm", async (req, res, next) => {
           cpf: patient.cpf || "",
           gender: patient.gender || "",
           phone: patient.phone || "",
-          prescription: texts.prescriptionText || ""
+          prescription: texts.prescriptionText || "",
+          clinicId: pending.clinicId,
+          doctorId: doctor.id
         }
       });
+      createdPatientId = createdPatient.id;
 
       if (texts.diagnosisText || texts.prescriptionText) {
         await prisma.consultation.create({
           data: {
             patientId: createdPatient.id,
+            clinicId: pending.clinicId,
             notes: `Diagnóstico:\n${texts.diagnosisText}\n\nPrescrição:\n${texts.prescriptionText}`.trim()
           }
         });
@@ -234,11 +326,23 @@ labRoutes.post("/upload/confirm", async (req, res, next) => {
       extraction: previewPayload(previewId, reviewedExtraction),
       comparison,
       diagnosisText: texts.diagnosisText,
-      prescriptionText: texts.prescriptionText
+      prescriptionText: texts.prescriptionText,
+      doctor,
+      patientId: createdPatientId
     });
   } catch (error) {
     next(error);
   }
+});
+
+labRoutes.patch("/patients/:id/prescription", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const prescription = String(req.body?.prescription || "").trim();
+    if (!Number.isInteger(id)) return res.status(400).json({ error: "Paciente inválido." });
+    const patient = await prisma.patient.update({ where: { id, ...clinicWhere(req) }, data: { prescription } });
+    return res.json({ patient });
+  } catch (error) { if (error.code === "P2025") return res.status(404).json({ error: "Paciente não encontrado." }); next(error); }
 });
 
 labRoutes.post("/upload", async (_req, res) => {

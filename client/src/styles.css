@@ -368,6 +368,11 @@ select:focus {
   align-items: center;
   justify-content: center;
   gap: 7px;
+  position: absolute;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 440px);
+  transform: translateX(-50%);
   overflow-x: auto;
 }
 
@@ -1133,7 +1138,29 @@ select:focus {
 }
 
 .lab-message {
-  margin-bottom: 16px;
+  margin: 0;
+}
+
+.lab-feedback-panel {
+  padding: 16px 20px;
+}
+
+.lab-feedback-panel.has-error {
+  border-color: rgba(180, 35, 24, 0.35);
+  background: #fff5f4;
+}
+
+.lab-feedback-panel.has-success {
+  border-color: rgba(4, 120, 87, 0.3);
+  background: #f0fdf8;
+}
+
+.lab-inline-error {
+  margin: -4px 0 18px;
+  padding: 12px 14px;
+  border: 1px solid rgba(180, 35, 24, 0.3);
+  border-radius: 10px;
+  background: #fff5f4;
 }
 
 .lab-upload {
@@ -1184,18 +1211,21 @@ select:focus {
 
 .lab-values-table th:nth-child(1),
 .lab-values-table td:nth-child(1) {
-  width: 28%;
+  width: 58%;
+  text-align: left;
 }
 
 .lab-values-table th:nth-child(2),
 .lab-values-table td:nth-child(2) {
-  width: 14%;
+  width: 28%;
   text-align: center;
 }
 
 .lab-values-table th:nth-child(3),
 .lab-values-table td:nth-child(3) {
-  width: 58%;
+  width: 14%;
+  text-align: right;
+  padding-right: 18px;
 }
 
 .lab-values-table td {
@@ -1209,6 +1239,30 @@ select:focus {
   min-height: 34px;
   padding: 7px 9px;
   text-align: center;
+}
+
+.lab-values-table .lab-value-actions {
+  overflow: visible;
+  text-align: right;
+}
+
+.remove-lab-value {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #be123c;
+  cursor: pointer;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.remove-lab-value:hover {
+  background: #fff1f2;
 }
 
 .readonly-value {
@@ -1601,6 +1655,10 @@ select:focus {
   }
 
   .topnav {
+    position: static;
+    width: auto;
+    max-width: none;
+    transform: none;
     grid-column: 1 / -1;
     grid-row: 2;
   }

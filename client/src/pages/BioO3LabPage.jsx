@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import Topbar from "../components/Topbar";
+import { useAuth } from "../AuthContext";
+import { TableSkeleton } from "../components/Skeleton";
 
 const emptyManual = {
   name: "",
@@ -30,7 +32,12 @@ function escapeHtml(value = "") {
     .replaceAll("'", "&#039;");
 }
 
+const emptyDoctor = { id: null, name: "", phone: "", councilType: "", councilNumber: "" };
+const digitsOnly = (value, maxLength) => String(value || "").replace(/\D/g, "").slice(0, maxLength);
+const uppercase = (value) => String(value || "").toLocaleUpperCase("pt-BR");
+
 export default function BioO3LabPage() {
+  const { user } = useAuth();
   const [mode, setMode] = useState("upload");
   const [manual, setManual] = useState(emptyManual);
   const [fileName, setFileName] = useState("");
@@ -40,14 +47,24 @@ export default function BioO3LabPage() {
   const [uploading, setUploading] = useState(false);
   const [editingPatient, setEditingPatient] = useState(false);
   const [doctors, setDoctors] = useState([]);
-  const [doctorDraft, setDoctorDraft] = useState({ name: "", phone: "" });
+  const [doctorDraft, setDoctorDraft] = useState(emptyDoctor);
   const [doctorModal, setDoctorModal] = useState(null);
+  const [doctorLoading, setDoctorLoading] = useState(true);
+  const [doctorSubmitting, setDoctorSubmitting] = useState(false);
+  const [doctorError, setDoctorError] = useState("");
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [references, setReferences] = useState([]);
+  const [referenceSearch, setReferenceSearch] = useState("");
+  const [referenceModal, setReferenceModal] = useState(false);
+  const [referenceLoading, setReferenceLoading] = useState(false);
+  const [referenceError, setReferenceError] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   async function refreshDoctors() {
-    const data = await api.doctors();
-    setDoctors(data.doctors || []);
+    setDoctorLoading(true);
+    try { const data = await api.doctors(); setDoctors(data.doctors || []); }
+    finally { setDoctorLoading(false); }
   }
 
   useEffect(() => {
@@ -56,17 +73,47 @@ export default function BioO3LabPage() {
 
   async function saveDoctor(event) {
     event.preventDefault();
-    setError("");
+    setDoctorError("");
     setMessage("");
+    setDoctorSubmitting(true);
     try {
-      await api.createDoctor(doctorDraft);
-      setDoctorDraft({ name: "", phone: "" });
+      if (doctorDraft.id) await api.updateDoctor(doctorDraft.id, doctorDraft);
+      else await api.createDoctor(doctorDraft);
+      const edited = Boolean(doctorDraft.id);
+      setDoctorDraft(emptyDoctor);
       await refreshDoctors();
       setDoctorModal("list");
-      setMessage("Prescritor cadastrado.");
+      setMessage(edited ? "Prescritor atualizado." : "Prescritor cadastrado.");
     } catch (err) {
-      setError(err.message);
-    }
+      setDoctorError(err.message);
+    } finally { setDoctorSubmitting(false); }
+  }
+
+  async function openReferences() {
+    setReferenceModal(true);
+    setReferenceLoading(true);
+    setReferenceError("");
+    try { const data = await api.references(); setReferences(data.references || []); }
+    catch (err) { setReferenceError(err.message); }
+    finally { setReferenceLoading(false); }
+  }
+
+  async function saveReference(reference) {
+    try { await api.updateReference(reference.testName, reference.ideal); setMessage(`Referência de ${reference.testName} atualizada.`); }
+    catch (err) { setError(err.message); }
+  }
+
+  function openDoctorForm(doctor = null) {
+    setDoctorError("");
+    setDoctorDraft(doctor ? { id: doctor.id, name: doctor.name, phone: doctor.phone, councilType: doctor.councilType, councilNumber: doctor.councilNumber } : emptyDoctor);
+    setDoctorModal(doctor ? "edit" : "create");
+  }
+
+  async function deleteDoctor(doctor) {
+    if (!window.confirm(`Excluir o prescritor ${doctor.name}?`)) return;
+    setDoctorError("");
+    try { await api.deleteDoctor(doctor.id); await refreshDoctors(); setMessage("Prescritor excluído."); }
+    catch (err) { setDoctorError(err.message); }
   }
 
   async function submitManual(event) {
@@ -113,6 +160,7 @@ export default function BioO3LabPage() {
       setUploading(true);
       const response = await api.confirmUploadLab({
         previewId: uploadPreview.previewId,
+        doctorId: selectedDoctorId,
         patient: uploadPreview.patient || {},
         values: uploadPreview.values || []
       });
@@ -141,6 +189,18 @@ export default function BioO3LabPage() {
     });
   }
 
+  function removePreviewValue(testName) {
+    setUploadPreview((current) => {
+      if (!current) return current;
+      const values = (current.values || []).filter((item) => item.testName !== testName);
+      return {
+        ...current,
+        values,
+        stats: { ...(current.stats || {}), extractedCount: values.length }
+      };
+    });
+  }
+
   function updatePreviewPatient(field, value) {
     setUploadPreview((current) => {
       if (!current) return current;
@@ -158,6 +218,7 @@ export default function BioO3LabPage() {
     if (!analysisResult) return;
 
     const patient = analysisResult.patient || {};
+    const doctor = analysisResult.doctor || {};
     const abnormalResults = (analysisResult.comparison?.results || [])
       .filter((result) => ["high", "low"].includes(result.status));
     const diagnosisRows = abnormalResults.map((result) => `
@@ -202,7 +263,9 @@ export default function BioO3LabPage() {
             th, td { border: 1px solid #d8edf7; padding: 8px; vertical-align: top; }
             .prescription { border: 1px solid #d8edf7; border-radius: 8px; padding: 12px; white-space: normal; }
             .signature { margin-top: 54px; display: grid; justify-content: center; }
-            .signature-line { width: 260px; border-top: 1px solid #122533; padding-top: 8px; text-align: center; color: #647888; }
+            .signature-line { width: 300px; border-top: 1px solid #122533; padding-top: 8px; text-align: center; color: #122533; }
+            .signature-line strong { display: block; font-size: 12px; text-transform: uppercase; }
+            .signature-line span { display: block; margin-top: 3px; color: #647888; font-size: 11px; }
             footer { position: fixed; bottom: 0; left: 0; right: 0; color: #647888; font-size: 10px; text-align: center; }
             @media print { button { display: none; } }
           </style>
@@ -241,7 +304,10 @@ export default function BioO3LabPage() {
           <section class="prescription">${prescription}</section>
 
           <section class="signature">
-            <div class="signature-line">Assinatura do prescritor</div>
+            <div class="signature-line">
+              <strong>${escapeHtml(doctor.name || "Prescritor não informado")}</strong>
+              <span>${escapeHtml([doctor.councilType, doctor.councilNumber].filter(Boolean).join(" ") || "Conselho não informado")}</span>
+            </div>
           </section>
 
           <footer>BioO3</footer>
@@ -262,6 +328,7 @@ export default function BioO3LabPage() {
     setUploadPreview(null);
     setAnalysisResult(null);
     setEditingPatient(false);
+    setSelectedDoctorId("");
     setError("");
     setMessage("");
   }
@@ -289,17 +356,15 @@ export default function BioO3LabPage() {
               </button>
             </div>
             <div className="doctor-actions">
-              <button className="secondary-button" type="button" onClick={() => setDoctorModal("create")}>
+              <button className="secondary-button" type="button" onClick={() => openDoctorForm()}>
                 Cadastrar prescritor
               </button>
               <button className="secondary-button" type="button" onClick={() => setDoctorModal("list")}>
                 Ver prescritores
               </button>
+              <button className="secondary-button" type="button" onClick={openReferences}>Valores de referência</button>
             </div>
           </div>
-
-          {message && <p className="form-success lab-message">{message}</p>}
-          {error && <p className="form-error lab-message">{error}</p>}
 
           {mode === "upload" ? (
             <form className="lab-upload" onSubmit={submitUpload}>
@@ -332,7 +397,7 @@ export default function BioO3LabPage() {
               <label><span>Idade</span><input type="number" value={manual.age} onChange={(e) => setManual({ ...manual, age: e.target.value })} required /></label>
               <label><span>CPF</span><input value={manual.cpf} onChange={(e) => setManual({ ...manual, cpf: e.target.value })} /></label>
               <label><span>Sexo</span><input value={manual.gender} onChange={(e) => setManual({ ...manual, gender: e.target.value })} /></label>
-              <label><span>Telefone</span><input value={manual.phone} onChange={(e) => setManual({ ...manual, phone: e.target.value })} /></label>
+              <label><span>Telefone</span><input inputMode="numeric" maxLength="11" value={manual.phone} onChange={(e) => setManual({ ...manual, phone: digitsOnly(e.target.value, 11) })} /></label>
               <label><span>Médico</span><input value={manual.doctor} onChange={(e) => setManual({ ...manual, doctor: e.target.value })} /></label>
               <label className="full-width">
                 <span>Resultados laboratoriais</span>
@@ -342,6 +407,12 @@ export default function BioO3LabPage() {
             </form>
           )}
         </section>
+
+        {(message || (error && !uploadPreview)) && (
+          <section className={`panel lab-feedback-panel ${error ? "has-error" : "has-success"}`}>
+            <p className={error ? "form-error lab-message" : "form-success lab-message"}>{error || message}</p>
+          </section>
+        )}
 
         {uploadPreview && (
           <section className="panel review-panel">
@@ -360,7 +431,9 @@ export default function BioO3LabPage() {
               </div>
             </div>
 
-            <div className="detail-grid">
+            {error && <p className="form-error lab-inline-error">{error}</p>}
+
+            <div className="detail-grid review-detail-grid">
               <div>
                 <span>Paciente</span>
                 {editingPatient ? (
@@ -393,6 +466,10 @@ export default function BioO3LabPage() {
                   <strong>{uploadPreview.patient?.cpf || "Não detectado"}</strong>
                 )}
               </div>
+              <div>
+                <span>Telefone</span>
+                {editingPatient ? <input inputMode="numeric" maxLength="11" value={uploadPreview.patient?.phone || ""} onChange={(event) => updatePreviewPatient("phone", digitsOnly(event.target.value, 11))} /> : <strong>{uploadPreview.patient?.phone || "Não detectado"}</strong>}
+              </div>
             </div>
 
             <div className="lab-stats">
@@ -400,13 +477,21 @@ export default function BioO3LabPage() {
               <span>{uploadPreview.stats?.lineCount || 0} linhas lidas</span>
             </div>
 
+            <label className="review-doctor-select">
+              <span>Prescritor responsável</span>
+              <select value={selectedDoctorId} onChange={(event) => setSelectedDoctorId(event.target.value)} required>
+                <option value="">Selecione um prescritor</option>
+                {doctors.map((doctor) => <option key={doctor.id} value={doctor.id} disabled={!doctor.councilType || !doctor.councilNumber}>{doctor.name} · {doctor.councilType && doctor.councilNumber ? `${doctor.councilType} ${doctor.councilNumber}` : "CR não cadastrado"}</option>)}
+              </select>
+            </label>
+
             <div className="table-wrap">
               <table className="control-table lab-values-table">
                 <thead>
                   <tr>
                     <th>Exame</th>
                     <th>Valor</th>
-                    <th>Linha de origem</th>
+                    <th aria-label="Ações"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -426,7 +511,17 @@ export default function BioO3LabPage() {
                           <span className="readonly-value">{item.value}</span>
                         )}
                       </td>
-                      <td>{item.sourceLine}</td>
+                      <td className="lab-value-actions">
+                        <button
+                          className="remove-lab-value"
+                          type="button"
+                          onClick={() => removePreviewValue(item.testName)}
+                          aria-label={`Remover exame ${item.testName}`}
+                          title="Remover exame"
+                        >
+                          ×
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {!uploadPreview.values?.length && (
@@ -461,7 +556,8 @@ export default function BioO3LabPage() {
               </article>
               <article>
                 <h3>Prescrição</h3>
-                <pre>{analysisResult.prescriptionText || "Nenhuma prescrição gerada."}</pre>
+                <textarea rows="12" value={analysisResult.prescriptionText || ""} onChange={(event) => setAnalysisResult({ ...analysisResult, prescriptionText: event.target.value })} />
+                {analysisResult.patientId && <button className="secondary-button" type="button" onClick={async () => { try { await api.updateAnalysisPrescription(analysisResult.patientId, analysisResult.prescriptionText || ""); setMessage("Prescrição salva."); } catch (err) { setError(err.message); } }}>Salvar prescrição</button>}
               </article>
             </div>
           </section>
@@ -470,36 +566,41 @@ export default function BioO3LabPage() {
 
       {doctorModal && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <div className="modal-card">
+          <div className="modal-card doctor-modal">
             <button className="modal-close" type="button" onClick={() => setDoctorModal(null)}>×</button>
-            {doctorModal === "create" ? (
+            {doctorModal === "create" || doctorModal === "edit" ? (
               <>
-                <h2>Cadastrar prescritor</h2>
-                <form className="form-grid one-column" onSubmit={saveDoctor}>
-                  <label><span>Nome</span><input value={doctorDraft.name} onChange={(e) => setDoctorDraft({ ...doctorDraft, name: e.target.value })} required /></label>
-                  <label><span>Telefone</span><input value={doctorDraft.phone} onChange={(e) => setDoctorDraft({ ...doctorDraft, phone: e.target.value })} /></label>
-                  <button className="primary-button fit-button" type="submit">Salvar</button>
+                <div className="doctor-modal-heading"><div><p className="eyebrow">Prescritores</p><h2>{doctorModal === "edit" ? "Editar prescritor" : "Novo prescritor"}</h2><p>Todos os campos são obrigatórios.</p></div></div>
+                <form className="form-grid doctor-form" onSubmit={saveDoctor}>
+                  <label><span>Nome completo</span><input value={doctorDraft.name} onChange={(e) => setDoctorDraft({ ...doctorDraft, name: uppercase(e.target.value) })} minLength="2" autoFocus required /></label>
+                  <label><span>Telefone</span><input inputMode="numeric" pattern="[0-9]{10,11}" minLength="10" maxLength="11" value={doctorDraft.phone} onChange={(e) => setDoctorDraft({ ...doctorDraft, phone: digitsOnly(e.target.value, 11) })} required /></label>
+                  <label><span>Tipo do conselho</span><input placeholder="CRM" value={doctorDraft.councilType} onChange={(e) => setDoctorDraft({ ...doctorDraft, councilType: uppercase(e.target.value).replace(/[^A-Z-]/g, "").slice(0, 12) })} minLength="2" maxLength="12" required /></label>
+                  <label><span>Número do conselho</span><input inputMode="numeric" pattern="[0-9]{3,12}" minLength="3" maxLength="12" value={doctorDraft.councilNumber} onChange={(e) => setDoctorDraft({ ...doctorDraft, councilNumber: digitsOnly(e.target.value, 12) })} required /></label>
+                  {doctorError && <p className="form-error full-width">{doctorError}</p>}
+                  <div className="modal-actions full-width"><button className="secondary-button" type="button" onClick={() => setDoctorModal("list")}>Cancelar</button><button className="primary-button" type="submit" disabled={doctorSubmitting}>{doctorSubmitting ? "Salvando..." : doctorModal === "edit" ? "Salvar alterações" : "Cadastrar prescritor"}</button></div>
                 </form>
               </>
             ) : (
               <>
-                <h2>Prescritores</h2>
-                <div className="table-wrap">
-                  <table className="control-table">
-                    <thead><tr><th>Nome</th><th className="center">Telefone</th></tr></thead>
+                <div className="doctor-list-heading"><div><p className="eyebrow">Prescritores</p><h2>Prescritores cadastrados</h2></div><button className="primary-button compact-button" type="button" onClick={() => openDoctorForm()}>Adicionar</button></div>
+                {doctorError && <p className="form-error">{doctorError}</p>}
+                {doctorLoading ? <TableSkeleton columns={4} rows={5} /> : <div className="table-wrap">
+                  <table className="control-table doctor-table">
+                    <thead><tr><th>Nome</th><th>Telefone</th><th>Conselho</th><th aria-label="Ações"></th></tr></thead>
                     <tbody>
                       {doctors.map((doctor) => (
-                        <tr key={doctor.id}><td>{doctor.name}</td><td className="center">{doctor.phone || "—"}</td></tr>
+                        <tr key={doctor.id}><td><strong>{doctor.name}</strong>{doctor.clinic?.name && <small>{doctor.clinic.name}</small>}</td><td>{doctor.phone || "—"}</td><td><span className="council-value"><b>{doctor.councilType || "—"}</b><span>{doctor.councilNumber || "Não cadastrado"}</span></span></td><td><div className="icon-actions"><button className="icon-button edit" type="button" onClick={() => openDoctorForm(doctor)} aria-label={`Editar ${doctor.name}`} title="Editar">✎</button><button className="icon-button delete" type="button" onClick={() => deleteDoctor(doctor)} aria-label={`Excluir ${doctor.name}`} title="Excluir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" /></svg></button></div></td></tr>
                       ))}
-                      {!doctors.length && <tr><td colSpan="2" className="center">Nenhum prescritor cadastrado.</td></tr>}
+                      {!doctors.length && <tr><td colSpan="4" className="center">Nenhum prescritor cadastrado.</td></tr>}
                     </tbody>
                   </table>
-                </div>
+                </div>}
               </>
             )}
           </div>
         </div>
       )}
+      {referenceModal && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card reference-modal"><button className="modal-close" type="button" onClick={() => setReferenceModal(false)}>×</button><h2>Valores de referência</h2><p className="muted-text">Lista geral usada nas análises. {user?.role === "ADMIN" ? "Você pode editar os intervalos." : "Somente o administrador pode editar."}</p><div className="reference-toolbar"><input type="search" placeholder="Pesquisar exame..." value={referenceSearch} onChange={(e) => setReferenceSearch(e.target.value)} /><strong>{references.length} referências</strong></div>{referenceError && <p className="form-error">{referenceError}</p>}{referenceLoading && <TableSkeleton columns={3} rows={6} />}{!referenceLoading && !referenceError && <div className="reference-list"><div className="reference-list-header"><span>Exame</span><span>Intervalo de referência</span><span></span></div>{references.filter((item) => item.testName.toLowerCase().includes(referenceSearch.toLowerCase())).map((reference) => <div className="reference-row" key={reference.testName}><strong>{reference.testName}</strong><input value={reference.ideal} disabled={user?.role !== "ADMIN"} onChange={(e) => setReferences((items) => items.map((item) => item.testName === reference.testName ? { ...item, ideal: e.target.value } : item))} />{user?.role === "ADMIN" ? <button className="secondary-button compact-button" type="button" onClick={() => saveReference(reference)}>Salvar</button> : <span />}</div>)}{!references.length && <div className="empty-state compact-empty">Nenhuma referência encontrada.</div>}</div>}</div></div>}
     </div>
   );
 }

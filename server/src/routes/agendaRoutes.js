@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { clinicWhere, handleScopeError, requireActiveClinic, selectedClinicId } from "../clinicScope.js";
 
 export const agendaRoutes = Router();
 
@@ -14,6 +15,8 @@ function serializeEvent(event) {
     date: event.startsAt.toISOString().slice(0, 10),
     time: event.startsAt.toISOString().slice(11, 16),
     notes: event.notes
+    ,clinicId: event.clinicId
+    ,clinicName: event.clinic?.name || ""
   };
 }
 
@@ -42,8 +45,9 @@ agendaRoutes.get("/", async (req, res, next) => {
         startsAt: {
           gte: monthStart,
           lt: monthEnd
-        }
+        }, ...clinicWhere(req)
       },
+      include: { clinic: true },
       orderBy: [{ startsAt: "asc" }, { id: "asc" }]
     });
 
@@ -56,6 +60,8 @@ agendaRoutes.get("/", async (req, res, next) => {
 agendaRoutes.post("/", async (req, res, next) => {
   try {
     const input = normalizeEventInput(req.body);
+    const clinicId = selectedClinicId(req, { required: true });
+    await requireActiveClinic(prisma, clinicId);
     if (!input.title || !input.day || Number.isNaN(input.startsAt.getTime())) {
       return res.status(400).json({ error: "Informe título, dia e horário do evento." });
     }
@@ -64,8 +70,8 @@ agendaRoutes.post("/", async (req, res, next) => {
       data: {
         title: input.title,
         startsAt: input.startsAt,
-        notes: input.notes
-      }
+        notes: input.notes, clinicId
+      }, include: { clinic: true }
     });
 
     return res.status(201).json({ event: serializeEvent(event) });
@@ -83,12 +89,12 @@ agendaRoutes.put("/:id", async (req, res, next) => {
     }
 
     const event = await prisma.agendaEvent.update({
-      where: { id },
+      where: { id, ...clinicWhere(req) },
       data: {
         title: input.title,
         startsAt: input.startsAt,
         notes: input.notes
-      }
+      }, include: { clinic: true }
     });
 
     return res.json({ event: serializeEvent(event) });
@@ -107,12 +113,13 @@ agendaRoutes.delete("/:id", async (req, res, next) => {
       return res.status(400).json({ error: "Evento inválido." });
     }
 
-    await prisma.agendaEvent.delete({ where: { id } });
+    const result = await prisma.agendaEvent.deleteMany({ where: { id, ...clinicWhere(req) } });
+    if (!result.count) return res.status(404).json({ error: "Evento não encontrado." });
     return res.status(204).send();
   } catch (error) {
     if (error.code === "P2025") {
       return res.status(404).json({ error: "Evento não encontrado." });
     }
-    next(error);
+    handleScopeError(error, res, next);
   }
 });
