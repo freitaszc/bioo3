@@ -325,6 +325,7 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 13px;
+  transform: translateX(14px);
 }
 
 .brand {
@@ -368,11 +369,7 @@ select:focus {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  position: absolute;
-  left: 50%;
-  width: max-content;
-  max-width: calc(100% - 440px);
-  transform: translateX(-50%);
+  transform: translateX(14px);
   overflow-x: auto;
 }
 
@@ -412,6 +409,7 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 18px;
+  transform: translateX(14px);
 }
 
 .avatar-link {
@@ -1655,10 +1653,6 @@ select:focus {
   }
 
   .topnav {
-    position: static;
-    width: auto;
-    max-width: none;
-    transform: none;
     grid-column: 1 / -1;
     grid-row: 2;
   }
