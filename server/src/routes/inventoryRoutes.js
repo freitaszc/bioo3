@@ -17,8 +17,14 @@ const movementLabels = {
 
 const inventoryInclude = {
   product: { select: { id: true, name: true } },
-  supplier: { select: { id: true, name: true } },
-  lot: { select: { id: true, batchNumber: true, expiresAt: true } },
+  lot: {
+    select: {
+      id: true,
+      batchNumber: true,
+      expiresAt: true,
+      supplier: { select: { id: true, name: true } }
+    }
+  },
   user: { select: { id: true, firstName: true, username: true } },
   patient: { select: { id: true, name: true } },
   patientPlan: { select: { id: true, name: true } }
@@ -62,6 +68,7 @@ function serializeMovement(movement) {
     clinicId: movement.clinicId,
     lotId: movement.lotId,
     batchNumber: movement.lot?.batchNumber || "",
+    supplierName: movement.lot?.supplier?.name || "",
     type: movement.type,
     typeLabel: movementLabels[movement.type] || movement.type,
     quantity: movement.quantity,

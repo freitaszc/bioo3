@@ -7,7 +7,8 @@ const emptyEvent = {
   title: "",
   day: "",
   time: "",
-  notes: ""
+  notes: "",
+  patientId: ""
 };
 
 function monthKey(date) {
@@ -37,11 +38,13 @@ function buildCalendarDays(currentMonth) {
 export default function AgendaPage() {
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [events, setEvents] = useState([]);
+  const [patients, setPatients] = useState([]);
   const [eventForm, setEventForm] = useState(emptyEvent);
   const [editingEvent, setEditingEvent] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const days = useMemo(() => buildCalendarDays(currentMonth), [currentMonth]);
   const eventsByDay = useMemo(() => {
@@ -65,6 +68,10 @@ export default function AgendaPage() {
     loadEvents(currentMonth);
   }, [currentMonth]);
 
+  useEffect(() => {
+    api.patients({ status: "Ativo" }).then((data) => setPatients(data.patients || [])).catch(() => setPatients([]));
+  }, []);
+
   function openCreate(day = dayKey(new Date())) {
     setEditingEvent(null);
     setEventForm({ ...emptyEvent, day, time: "09:00" });
@@ -77,7 +84,8 @@ export default function AgendaPage() {
       title: event.title || "",
       day: event.date || "",
       time: event.time || "",
-      notes: event.notes || ""
+      notes: event.notes || "",
+      patientId: event.patientId || ""
     });
     setModalOpen(true);
   }
@@ -88,6 +96,9 @@ export default function AgendaPage() {
 
   function submitEvent(event) {
     event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setError("");
     const action = editingEvent
       ? api.updateAgendaEvent(editingEvent.id, eventForm)
       : api.createAgendaEvent(eventForm);
@@ -99,7 +110,8 @@ export default function AgendaPage() {
         setEventForm(emptyEvent);
         return loadEvents();
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(err.message))
+      .finally(() => setSaving(false));
   }
 
   function deleteEvent() {
@@ -119,7 +131,7 @@ export default function AgendaPage() {
         <section className="page-heading">
           <div>
             <p className="eyebrow">Agenda</p>
-            <h1>Agenda de eventos</h1>
+            <h1>Agenda de compromissos</h1>
             <p className="page-subtitle">Clique em um dia para agendar título, horário e observações.</p>
           </div>
           <button className="primary-button" type="button" onClick={() => openCreate()}>Novo evento</button>
@@ -161,7 +173,7 @@ export default function AgendaPage() {
                             openEdit(event);
                           }}
                         >
-                          {event.time} {event.title}{event.clinicName ? ` · ${event.clinicName}` : ""}
+                          {event.time} {event.title}{event.patientName ? ` · ${event.patientName}` : ""}
                         </span>
                       ))}
                       {dayEvents.length > 3 && <span className="agenda-more">+{dayEvents.length - 3}</span>}
@@ -178,15 +190,16 @@ export default function AgendaPage() {
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="modal-card">
             <button className="modal-close" type="button" onClick={() => setModalOpen(false)}>×</button>
-            <h2>{editingEvent ? "Editar evento" : "Novo evento"}</h2>
+            <h2>{editingEvent ? "Editar compromisso" : "Novo compromisso"}</h2>
             <form className="form-grid" onSubmit={submitEvent}>
               <label className="full-width"><span>Título</span><input value={eventForm.title} onChange={(event) => setEventForm({ ...eventForm, title: event.target.value })} required /></label>
               <label><span>Dia</span><input type="date" value={eventForm.day} onChange={(event) => setEventForm({ ...eventForm, day: event.target.value })} required /></label>
               <label><span>Horário</span><input type="time" value={eventForm.time} onChange={(event) => setEventForm({ ...eventForm, time: event.target.value })} required /></label>
+              <label className="full-width"><span>Paciente (opcional)</span><select value={eventForm.patientId} onChange={(event) => setEventForm({ ...eventForm, patientId: event.target.value })}><option value="">Sem paciente vinculado</option>{patients.map((patient) => <option key={patient.id} value={patient.id}>{patient.name}</option>)}</select></label>
               <label className="full-width"><span>Notas</span><textarea value={eventForm.notes} onChange={(event) => setEventForm({ ...eventForm, notes: event.target.value })} rows="4" /></label>
               <div className="modal-actions full-width">
                 {editingEvent && <ActionButton action="delete" onClick={deleteEvent}>Remover evento</ActionButton>}
-                <button className="primary-button" type="submit">Salvar evento</button>
+                <button className="primary-button" type="submit" disabled={saving}>{saving ? "Salvando..." : "Salvar compromisso"}</button>
               </div>
             </form>
           </div>

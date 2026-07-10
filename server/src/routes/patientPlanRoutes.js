@@ -7,7 +7,7 @@ export const patientPlanRoutes = Router();
 patientPlanRoutes.use(requireAuth);
 
 const FREQUENCIES = new Set(["WEEKLY", "BIWEEKLY", "MONTHLY"]);
-const STATUSES = new Set(["QUOTE", "ACTIVE", "COMPLETED", "CANCELED"]);
+const STATUSES = new Set(["QUOTE", "ACTIVE", "INACTIVE", "COMPLETED", "CANCELED"]);
 const SESSION_STATUSES = new Set(["PENDING", "SCHEDULED", "COMPLETED", "CANCELED"]);
 
 const includePlan = {
@@ -118,7 +118,7 @@ patientPlanRoutes.get("/", async (req, res, next) => {
 
     const plans = await prisma.patientPlan.findMany({
       where: {
-        ...(patientId === null ? {} : patientWhere(req, patientId)),
+        ...(patientId === null ? {} : { patientId }),
         ...(clinicId ? { clinicId } : !isAdmin(req) ? { clinicId: req.user.clinicId } : {})
       },
       include: includePlan,
@@ -147,7 +147,7 @@ patientPlanRoutes.post("/", async (req, res, next) => {
     const input = normalizePlanInput({
       name: req.body?.name ?? template?.name,
       frequency: req.body?.frequency ?? template?.frequency ?? "WEEKLY",
-      sessions: req.body?.sessions ?? template?.sessions ?? 4,
+      sessions: req.body?.sessions ?? template?.sessions,
       description: req.body?.description,
       items: req.body?.items ?? template?.items ?? []
     });
@@ -233,7 +233,8 @@ patientPlanRoutes.patch("/:id/status", async (req, res, next) => {
     if (!current) return res.status(404).json({ error: "Plano não encontrado." });
     if (current.status === "CANCELED" || current.status === "COMPLETED") return res.status(409).json({ error: "Este plano não pode mais ser alterado." });
     if (status === "QUOTE" && current.status !== "QUOTE") return res.status(409).json({ error: "Somente planos em orçamento podem permanecer nesse status." });
-    if (status === "ACTIVE" && current.status !== "QUOTE") return res.status(409).json({ error: "Somente planos em orçamento podem ser ativados." });
+    if (status === "ACTIVE" && current.status !== "QUOTE" && current.status !== "INACTIVE") return res.status(409).json({ error: "Somente planos em orçamento ou inativos podem ser ativados." });
+    if (status === "INACTIVE" && current.status !== "ACTIVE") return res.status(409).json({ error: "Somente planos ativos podem ser inativados." });
     if (status === "COMPLETED" && current.status !== "ACTIVE") return res.status(409).json({ error: "Somente planos ativos podem ser concluídos." });
 
     const plan = await prisma.patientPlan.update({ where: { id }, data: { status }, include: includePlan });

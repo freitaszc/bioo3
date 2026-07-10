@@ -118,6 +118,7 @@ model Patient {
   updatedAt     DateTime       @updatedAt
   doctor        Doctor?        @relation(fields: [doctorId], references: [id], onDelete: SetNull)
   consultations Consultation[]
+  agendaEvents  AgendaEvent[]
   analysisEvents AnalysisEvent[]
   patientPlans  PatientPlan[]
   stockMovements StockMovement[]
@@ -449,11 +450,15 @@ model AgendaEvent {
   title     String
   startsAt  DateTime
   notes     String   @default("")
+  dedupeKey String?  @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   clinicId  Int
+  patientId Int?
   clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient   Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
 
   @@index([startsAt])
   @@index([clinicId])
+  @@index([patientId])
 }
