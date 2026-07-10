@@ -14,6 +14,7 @@ import { productRoutes } from "./routes/productRoutes.js";
 import { planTemplateRoutes } from "./routes/planTemplateRoutes.js";
 import { patientPlanRoutes } from "./routes/patientPlanRoutes.js";
 import { inventoryRoutes } from "./routes/inventoryRoutes.js";
+import { cashRoutes } from "./routes/cashRoutes.js";
 import { videoRoutes } from "./routes/videoRoutes.js";
 import { adminRoutes } from "./routes/adminRoutes.js";
 
@@ -74,6 +75,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/plan-templates", planTemplateRoutes);
 app.use("/api/patient-plans", patientPlanRoutes);
 app.use("/api/inventory", inventoryRoutes);
+app.use("/api/cash", cashRoutes);
 app.use("/api/agenda", agendaRoutes);
 
 // Serve client build in production

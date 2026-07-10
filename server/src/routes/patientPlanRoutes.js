@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { isAdmin } from "../clinicScope.js";
+import { isAdmin, selectedClinicId } from "../clinicScope.js";
 
 export const patientPlanRoutes = Router();
 patientPlanRoutes.use(requireAuth);
@@ -44,15 +44,13 @@ function serializePlan(plan) {
 }
 
 function patientWhere(req, patientId) {
-  return isAdmin(req)
-    ? { id: patientId }
-    : { id: patientId, clinicId: req.user.clinicId };
+  const clinicId = selectedClinicId(req);
+  return { id: patientId, ...(clinicId ? { clinicId } : !isAdmin(req) ? { clinicId: req.user.clinicId } : {}) };
 }
 
 function planWhere(req, id) {
-  return isAdmin(req)
-    ? { id }
-    : { id, clinicId: req.user.clinicId };
+  const clinicId = selectedClinicId(req);
+  return { id, ...(clinicId ? { clinicId } : !isAdmin(req) ? { clinicId: req.user.clinicId } : {}) };
 }
 
 function normalizeItems(items) {
@@ -98,11 +96,12 @@ patientPlanRoutes.get("/", async (req, res, next) => {
   try {
     const patientId = req.query.patientId === undefined ? null : Number(req.query.patientId);
     if (req.query.patientId !== undefined && !Number.isInteger(patientId)) return res.status(400).json({ error: "Paciente inválido." });
+    const clinicId = selectedClinicId(req);
 
     const plans = await prisma.patientPlan.findMany({
       where: {
         ...(patientId === null ? {} : patientWhere(req, patientId)),
-        ...(!isAdmin(req) ? { clinicId: req.user.clinicId } : {})
+        ...(clinicId ? { clinicId } : !isAdmin(req) ? { clinicId: req.user.clinicId } : {})
       },
       include: includePlan,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }]

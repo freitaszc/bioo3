@@ -21,7 +21,7 @@
 | Global plan templates | Implemented | Administrator-managed templates with products, routes, frequencies, and sessions |
 | Patient records and Prontuário | Implemented | Dedicated patient page with editable information, clinical history, consultations, and BioO3 Lab access |
 | Patient plans | Implemented | Plans are exclusive to a patient and support quotes, activation, printing, PDF export, completion, and cancellation |
-| Cash register and sales | Pending | No database, API, or interface yet |
+| Cash register and sales | Implemented | Clinic-scoped sales, price snapshots, discounts, installments, payments, and inventory links |
 | Receipt and official invoice | Pending | Will require PDF generation and tax integration |
 
 ## Roadmap
@@ -99,6 +99,10 @@
 - Inventory supports suppliers, batches, expiration dates, and quantity by batch.
 - Inventory movements preserve user, clinic, patient, plan, date, and reason.
 - Sales and consumption movements warn about insufficient or expired stock without blocking the movement.
+- Cash register supports manual sales and sales originating from patient plans.
+- Sale items preserve the current inventory sale price used at the time of sale.
+- Discounts, installments, payments, and payment history are stored independently from inventory.
+- The administrator can view all sales or filter them by clinic.
 - Sessions and frequency are adjustable.
 - Quotes use inventory prices and preserve historical prices.
 - Discounts, installments, and the 50% split are calculated correctly.

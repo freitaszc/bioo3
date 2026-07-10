@@ -2,7 +2,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 let clinicScope = localStorage.getItem("bioo3_clinic_scope") || "";
 
 function scopedPath(path) {
-  const operational = ["/dashboard", "/patients", "/products", "/agenda", "/lab", "/inventory"];
+  const operational = ["/dashboard", "/patients", "/products", "/agenda", "/lab", "/inventory", "/cash", "/patient-plans"];
   if (!clinicScope || !operational.some((prefix) => path.startsWith(prefix))) return path;
   const separator = path.includes("?") ? "&" : "?";
   return `${path}${separator}clinicId=${encodeURIComponent(clinicScope)}`;
@@ -74,7 +74,7 @@ export const api = {
     method: "POST",
     body: JSON.stringify(payload)
   }),
-  patientPlans: (patientId) => request(`/patient-plans?patientId=${encodeURIComponent(patientId)}`),
+  patientPlans: (patientId) => request(`/patient-plans${patientId ? `?patientId=${encodeURIComponent(patientId)}` : ""}`),
   createPatientPlan: (payload) => request("/patient-plans", {
     method: "POST",
     body: JSON.stringify(payload)
@@ -133,6 +133,10 @@ export const api = {
     return request(`/inventory/movements${suffix}`);
   },
   createStockMovement: (payload) => request("/inventory/movements", { method: "POST", body: JSON.stringify(payload) }),
+  sales: (status = "") => request(`/cash/sales${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  sale: (id) => request(`/cash/sales/${id}`),
+  createSale: (payload) => request("/cash/sales", { method: "POST", body: JSON.stringify(payload) }),
+  createPayment: (saleId, payload) => request(`/cash/sales/${saleId}/payments`, { method: "POST", body: JSON.stringify(payload) }),
   agendaEvents: (month) => request(`/agenda${month ? `?month=${month}` : ""}`),
   createAgendaEvent: (payload) => request("/agenda", {
     method: "POST",

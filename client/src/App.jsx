@@ -14,6 +14,7 @@ import VideosPage from "./pages/VideosPage";
 import ClinicsPage from "./pages/ClinicsPage";
 import PlanTemplatesPage from "./pages/PlanTemplatesPage";
 import ProntuarioPage from "./pages/ProntuarioPage";
+import CashPage from "./pages/CashPage";
 
 function ProtectedRoute({ children }) {
   const { loading, user } = useAuth();
@@ -42,6 +43,7 @@ export default function App() {
       <Route path="/pacientes" element={<ProtectedRoute><PatientsPage /></ProtectedRoute>} />
       <Route path="/pacientes/:id" element={<ProtectedRoute><ProntuarioPage /></ProtectedRoute>} />
       <Route path="/estoque" element={<ProtectedRoute><StockPage /></ProtectedRoute>} />
+      <Route path="/caixa" element={<ProtectedRoute><CashPage /></ProtectedRoute>} />
       <Route path="/agenda" element={<ProtectedRoute><AgendaPage /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
       <Route path="/admin/clinics" element={<ProtectedRoute><ClinicsPage /></ProtectedRoute>} />

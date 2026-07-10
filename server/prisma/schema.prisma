@@ -20,6 +20,8 @@ model User {
   updatedAt        DateTime        @updatedAt
   analysisEvents   AnalysisEvent[]
   stockMovements   StockMovement[]
+  sales            Sale[]
+  payments         Payment[]
   role             String          @default("CLINIC")
   clinicId         Int?            @unique
   clinic           Clinic?         @relation(fields: [clinicId], references: [id], onDelete: SetNull)
@@ -43,6 +45,8 @@ model Clinic {
   suppliers       Supplier[]
   stockLots       StockLot[]
   stockMovements  StockMovement[]
+  sales           Sale[]
+  payments        Payment[]
 
   @@index([name])
   @@index([status])
@@ -117,6 +121,7 @@ model Patient {
   analysisEvents AnalysisEvent[]
   patientPlans  PatientPlan[]
   stockMovements StockMovement[]
+  sales          Sale[]
   clinicId      Int
   clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
@@ -154,6 +159,7 @@ model Product {
   clinic        Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
   stockLots     StockLot[]
   stockMovements StockMovement[]
+  saleItems     SaleItem[]
 
   @@index([name])
   @@index([status])
@@ -205,6 +211,7 @@ model PatientPlan {
   template    PlanTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   planSessions PlanSession[]
   stockMovements StockMovement[]
+  sales        Sale[]
 
   @@index([patientId])
   @@index([clinicId])
@@ -277,6 +284,7 @@ model StockMovement {
   userId        Int?
   patientId     Int?
   patientPlanId Int?
+  saleId        Int?
   type          String
   quantity      Int
   reason        String       @default("")
@@ -287,6 +295,7 @@ model StockMovement {
   user          User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
   patient       Patient?     @relation(fields: [patientId], references: [id], onDelete: SetNull)
   patientPlan   PatientPlan? @relation(fields: [patientPlanId], references: [id], onDelete: SetNull)
+  sale          Sale?        @relation(fields: [saleId], references: [id], onDelete: SetNull)
 
   @@index([productId])
   @@index([clinicId])
@@ -294,8 +303,93 @@ model StockMovement {
   @@index([userId])
   @@index([patientId])
   @@index([patientPlanId])
+  @@index([saleId])
   @@index([type])
   @@index([createdAt])
+}
+
+model Sale {
+  id               Int           @id @default(autoincrement())
+  clinicId         Int
+  patientId        Int?
+  patientPlanId    Int?
+  createdById      Int?
+  source           String
+  status           String        @default("OPEN")
+  subtotal         Decimal       @db.Decimal(10, 2)
+  discountPercent  Decimal       @default(0) @db.Decimal(5, 2)
+  discountAmount   Decimal       @default(0) @db.Decimal(10, 2)
+  total            Decimal       @db.Decimal(10, 2)
+  installments     Int           @default(1)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  clinic           Clinic        @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient          Patient?      @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  patientPlan      PatientPlan?  @relation(fields: [patientPlanId], references: [id], onDelete: SetNull)
+  createdBy        User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  items            SaleItem[]
+  installmentRows  Installment[]
+  payments         Payment[]
+  stockMovements   StockMovement[]
+
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([patientPlanId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SaleItem {
+  id          Int      @id @default(autoincrement())
+  saleId      Int
+  productId   Int
+  productName String
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  total       Decimal  @db.Decimal(10, 2)
+  sale        Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model Installment {
+  id         Int        @id @default(autoincrement())
+  saleId     Int
+  number     Int
+  amount     Decimal    @db.Decimal(10, 2)
+  dueDate    DateTime?
+  status     String     @default("PENDING")
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  sale       Sale       @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  payments   Payment[]
+
+  @@unique([saleId, number])
+  @@index([saleId])
+  @@index([status])
+}
+
+model Payment {
+  id            Int          @id @default(autoincrement())
+  saleId        Int
+  installmentId Int?
+  clinicId      Int
+  userId        Int?
+  amount        Decimal      @db.Decimal(10, 2)
+  method        String
+  notes         String       @default("")
+  receivedAt    DateTime     @default(now())
+  sale          Sale         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  installment   Installment? @relation(fields: [installmentId], references: [id], onDelete: SetNull)
+  clinic        Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  user          User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([saleId])
+  @@index([installmentId])
+  @@index([clinicId])
+  @@index([receivedAt])
 }
 
 model AgendaEvent {

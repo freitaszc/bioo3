@@ -9,6 +9,7 @@ const navItems = [
   { label: "BioO3 Lab", path: "/bioo3-lab", enabled: true },
   { label: "Pacientes", path: "/pacientes", enabled: true },
   { label: "Estoque", path: "/estoque", enabled: true },
+  { label: "Caixa", path: "/caixa", enabled: true },
   { label: "Agenda", path: "/agenda", enabled: true },
   { label: "Modelos", path: "/admin/plan-templates", enabled: true, adminOnly: true, className: "templates-nav-link" },
   { label: "Clínicas", path: "/admin/clinics", enabled: true, adminOnly: true, className: "clinics-nav-link" }
