@@ -3,7 +3,6 @@ import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import AnalysisChart from "../components/AnalysisChart";
 import { ChartSkeleton, SkeletonBlock } from "../components/Skeleton";
-import Topbar from "../components/Topbar";
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -18,13 +17,12 @@ export default function HomePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const displayName = [user?.firstName, user?.secondName].filter(Boolean).join(" ") || user?.email;
+  const displayName = user?.firstName || user?.email;
   const average = stats.days.length ? (stats.total / stats.days.length).toFixed(1) : "0.0";
   const remainingAnalyses = stats.remainingAnalyses ?? 0;
 
   return (
     <div className="app-frame">
-      <Topbar />
       <main className="page-shell">
         <section className="page-heading">
           <div>

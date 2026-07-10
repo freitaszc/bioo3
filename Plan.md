@@ -18,11 +18,11 @@
 | Analysis printing | Implemented | Page is ready for printing/PDF |
 | Basic inventory | Implemented | Products, quantities, and prices |
 | Batch, expiration date, supplier, and movements | Implemented | Advanced inventory records lots, suppliers, movements, linked users, clinics, patients, and plans |
-| Global plan templates | Implemented | Administrator-managed templates with products, routes, frequencies, and sessions |
+| Global plan templates | Retained for historical compatibility | No longer shown in navigation or required for new plans |
 | Patient records and Prontuário | Implemented | Dedicated patient page with editable information, clinical history, consultations, and BioO3 Lab access |
-| Patient plans | Implemented | Plans are exclusive to a patient and support quotes, activation, printing, PDF export, completion, and cancellation |
+| Patient plans | Implemented | Clinics create plans directly inside the patient’s Prontuário, keep product snapshots and estimated totals, and support quotes, activation, printing, PDF export, completion, and cancellation |
 | Cash register and sales | Implemented | Clinic-scoped sales, price snapshots, discounts, installments, payments, and inventory links |
-| Receipt and official invoice | Pending | Will require PDF generation and tax integration |
+| Receipt and official invoice | Partially implemented | Receipt/PDF and 50% BioO3 fiscal-document tracking are available; official provider integration remains pending |
 
 ## Roadmap
 
@@ -32,18 +32,20 @@
    - Do not configure SMTP or send email notifications at this stage.
    - Maintain one access account per clinic.
 
-2. **Plan templates**
-   - The administrator creates global templates, such as hair loss and weight loss.
+2. **Product catalog**
+   - The product catalog comes from the BioO3 Lab references and remains available when a clinic creates a patient plan.
    - Allowed routes: intramuscular, intravenous, and subcutaneous.
-   - Each template defines products, quantities, frequency, and sessions.
+   - Each template defines prescribed products, preparation, application, quantity, unit, frequency, and default sessions.
+   - The administrator defines the unit price for each product.
    - Frequencies: weekly, every two weeks, and monthly.
    - Default quantity of four sessions, always adjustable.
-   - Only the administrator creates and maintains global templates.
+   - Global templates are not required for new plans; the previous template structure remains only for historical compatibility.
 
 3. **Patient plans**
-   - The clinic selects a template and creates a plan for its patient.
+   - The clinic creates a plan directly for its patient without requiring a template.
    - The administrator can create a plan for any selected clinic.
-   - The clinic can adapt sessions, frequency, and additional information.
+   - The clinic can add prescribed products and adapt each product’s quantity, sessions, interval in days, unit price, frequency, and additional information.
+   - Product preparation and application are copied from `references.json` and preserved in the patient-plan snapshot.
    - Statuses: quote, active, completed, and canceled.
    - Actions: create quote, activate, print, export PDF, and cancel.
    - Cancellation preserves history, sessions, and amounts.
@@ -88,14 +90,14 @@
 - Registration remains pending until administrative approval.
 - The administrator can approve or reject registrations from the Clinics section.
 - No email or SMTP configuration is required for the current approval workflow.
-- Only the administrator can create global templates.
-- The clinic and administrator can create plans for authorized patients.
+- Clinics and the administrator can create plans directly for authorized patients.
 - Clicking a patient opens the Prontuário page instead of a detail modal.
 - Patient information is edited from the Prontuário page.
 - Prontuário shows consultations, prescriptions, analyses, and dates.
 - Plans belong exclusively to the selected patient.
 - A BioO3 Lab analysis can be started from the patient’s Prontuário and linked to that patient.
-- Patient plans support quote, activation, printing, PDF export, completion, and cancellation.
+- Patient plans display a product table and support quote, activation, printing, PDF export, completion, and cancellation.
+- Plan creation can save a quote or immediately export the plan.
 - Inventory supports suppliers, batches, expiration dates, and quantity by batch.
 - Inventory movements preserve user, clinic, patient, plan, date, and reason.
 - Sales and consumption movements warn about insufficient or expired stock without blocking the movement.
@@ -103,6 +105,8 @@
 - Sale items preserve the current inventory sale price used at the time of sale.
 - Discounts, installments, payments, and payment history are stored independently from inventory.
 - The administrator can view all sales or filter them by clinic.
+- Receipts include the full sale and show the 50% BioO3 / 50% clinic split.
+- Fiscal-document records represent only BioO3’s 50% and remain pending until a provider and credentials are configured.
 - Sessions and frequency are adjustable.
 - Quotes use inventory prices and preserve historical prices.
 - Discounts, installments, and the 50% split are calculated correctly.
@@ -117,7 +121,7 @@
 
 - “OK” means approved requirement.
 - Name and location are entered in the same field.
-- The administrator creates templates; the clinic applies and adapts the template for the patient.
+- Clinics create plans directly for each patient using the shared prescribed-product catalog.
 - Exporting a plan means downloading a PDF.
 - The base price is the product’s `salePrice`.
 - The system will allow a sale even when inventory is incorrect.

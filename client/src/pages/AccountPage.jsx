@@ -1,14 +1,11 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
-import Topbar from "../components/Topbar";
 
 export default function AccountPage() {
   const { setUser, user } = useAuth();
   const [profile, setProfile] = useState({
     firstName: "",
-    secondName: "",
-    birthdate: "",
     email: "",
     profileImagePath: "/assets/user-icon.png"
   });
@@ -22,8 +19,6 @@ export default function AccountPage() {
     if (user) {
       setProfile({
         firstName: user.firstName || "",
-        secondName: user.secondName || "",
-        birthdate: user.birthdate || "",
         email: user.email || "",
         profileImagePath: user.profileImagePath || "/assets/user-icon.png"
       });
@@ -58,7 +53,6 @@ export default function AccountPage() {
 
   return (
     <div className="app-frame">
-      <Topbar />
       <main className="page-shell account-grid">
         <section className="page-heading account-heading">
           <div>
@@ -80,14 +74,6 @@ export default function AccountPage() {
             <label>
               <span>Nome</span>
               <input value={profile.firstName} onChange={(event) => setProfile({ ...profile, firstName: event.target.value })} />
-            </label>
-            <label>
-              <span>Sobrenome</span>
-              <input value={profile.secondName} onChange={(event) => setProfile({ ...profile, secondName: event.target.value })} />
-            </label>
-            <label>
-              <span>Data de nascimento</span>
-              <input type="date" value={profile.birthdate} onChange={(event) => setProfile({ ...profile, birthdate: event.target.value })} />
             </label>
             <label>
               <span>E-mail</span>

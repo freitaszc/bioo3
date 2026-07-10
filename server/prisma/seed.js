@@ -36,7 +36,6 @@ async function main() {
       username,
       passwordHash,
       firstName: "Admin",
-      secondName: "",
       email,
       role: "ADMIN",
       clinicId: defaultClinic.id

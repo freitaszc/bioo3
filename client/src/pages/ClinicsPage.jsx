@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
-import Topbar from "../components/Topbar";
 import { TableSkeleton } from "../components/Skeleton";
 
 const statusLabels = { PENDING: "Pendente", ACTIVE: "Ativa", REJECTED: "Rejeitada", SUSPENDED: "Suspensa" };
@@ -41,7 +40,7 @@ export default function ClinicsPage() {
     if (email?.trim()) act(() => api.setClinicEmail(clinic.id, email.trim()), "E-mail atualizado.");
   }
 
-  return <div className="app-frame"><Topbar /><main className="page-shell">
+  return <div className="app-frame"><main className="page-shell">
     <section className="page-heading"><div><p className="eyebrow">Administração</p><h1>Clínicas</h1><p className="page-subtitle">Aprovação e controle dos acessos das clínicas.</p></div></section>
     <section className="panel">
       <form className="filter-bar" onSubmit={(e) => { e.preventDefault(); load(); }}><select value={filter} onChange={(e) => setFilter(e.target.value)}><option value="">Todos os status</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><button className="secondary-button">Filtrar</button></form>

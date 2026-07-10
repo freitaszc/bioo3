@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import { VideoPlayerSkeleton } from "../components/Skeleton";
-import Topbar from "../components/Topbar";
 
 function loadHlsScript() {
   if (window.Hls) return Promise.resolve(window.Hls);
@@ -65,7 +64,6 @@ export default function VideoPage() {
 
   return (
     <div className="app-frame">
-      <Topbar />
       <main className="page-shell">
         <section className="page-heading">
           <div>

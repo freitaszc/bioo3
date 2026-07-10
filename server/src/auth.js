@@ -8,8 +8,6 @@ export function publicUser(user) {
     id: user.id,
     username: user.username,
     firstName: user.firstName,
-    secondName: user.secondName,
-    birthdate: user.birthdate ? user.birthdate.toISOString().slice(0, 10) : "",
     email: user.email || "",
     profileImagePath: user.profileImagePath || "/assets/user-icon.png",
     role: user.role,

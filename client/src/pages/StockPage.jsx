@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { TableSkeleton } from "../components/Skeleton";
-import Topbar from "../components/Topbar";
+import ActionButton from "../components/ActionButton";
 
 const emptyProduct = {
   name: "",
@@ -175,7 +175,6 @@ export default function StockPage() {
 
   return (
     <div className="app-frame">
-      <Topbar />
       <main className="page-shell">
         <section className="page-heading">
           <div>
@@ -239,7 +238,7 @@ export default function StockPage() {
                           {product.status}
                         </button>
                       </td>
-                      <td className="center"><button className="secondary-button compact-button" type="button" onClick={() => openEdit(product)}>Editar</button></td>
+                      <td className="center"><ActionButton action="edit" iconOnly onClick={() => openEdit(product)} aria-label={`Editar ${product.name}`} /></td>
                     </tr>
                   ))}
                   {!products.length && <tr><td colSpan="8"><div className="empty-state compact-empty">Nenhum produto cadastrado.</div></td></tr>}
@@ -273,7 +272,7 @@ export default function StockPage() {
         </div>
       )}
 
-      {advancedModal === "supplier" && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card inventory-modal"><button className="modal-close" type="button" onClick={() => setAdvancedModal(null)}>×</button><h2>Fornecedores</h2><form className="form-grid" onSubmit={submitSupplier}><label><span>Nome</span><input value={supplierForm.name} onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })} required /></label><label><span>Contato</span><input value={supplierForm.contact} onChange={(e) => setSupplierForm({ ...supplierForm, contact: e.target.value })} /></label><label><span>Telefone</span><input value={supplierForm.phone} onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })} /></label><label><span>E-mail</span><input type="email" value={supplierForm.email} onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })} /></label><label className="full-width"><span>Observações</span><textarea rows="3" value={supplierForm.notes} onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })} /></label>{advancedError && <p className="form-error full-width">{advancedError}</p>}<button className="primary-button fit-button" type="submit">Cadastrar fornecedor</button></form><div className="inventory-list">{suppliers.map((supplier) => <div className="inventory-list-row" key={supplier.id}><div><strong>{supplier.name}</strong><small>{supplier.phone || supplier.email || "Sem contato informado"}</small></div><button className="danger-button compact-button" type="button" onClick={() => deleteSupplier(supplier)}>Excluir</button></div>)}{!suppliers.length && <p className="muted-text">Nenhum fornecedor cadastrado.</p>}</div></div></div>}
+      {advancedModal === "supplier" && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card inventory-modal"><button className="modal-close" type="button" onClick={() => setAdvancedModal(null)}>×</button><h2>Fornecedores</h2><form className="form-grid" onSubmit={submitSupplier}><label><span>Nome</span><input value={supplierForm.name} onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })} required /></label><label><span>Contato</span><input value={supplierForm.contact} onChange={(e) => setSupplierForm({ ...supplierForm, contact: e.target.value })} /></label><label><span>Telefone</span><input value={supplierForm.phone} onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })} /></label><label><span>E-mail</span><input type="email" value={supplierForm.email} onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })} /></label><label className="full-width"><span>Observações</span><textarea rows="3" value={supplierForm.notes} onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })} /></label>{advancedError && <p className="form-error full-width">{advancedError}</p>}<button className="primary-button fit-button" type="submit">Cadastrar fornecedor</button></form><div className="inventory-list">{suppliers.map((supplier) => <div className="inventory-list-row" key={supplier.id}><div><strong>{supplier.name}</strong><small>{supplier.phone || supplier.email || "Sem contato informado"}</small></div><ActionButton action="delete" iconOnly onClick={() => deleteSupplier(supplier)} aria-label={`Excluir ${supplier.name}`} /></div>)}{!suppliers.length && <p className="muted-text">Nenhum fornecedor cadastrado.</p>}</div></div></div>}
 
       {advancedModal === "lot" && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card inventory-modal"><button className="modal-close" type="button" onClick={() => setAdvancedModal(null)}>×</button><h2>Entrada de lote</h2><p className="muted-text">A entrada atualiza o estoque do produto e registra uma movimentação.</p><form className="form-grid" onSubmit={submitLot}><label><span>Produto</span><select value={lotForm.productId} onChange={(e) => setLotForm({ ...lotForm, productId: e.target.value })} required><option value="">Selecione</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label><label><span>Fornecedor</span><select value={lotForm.supplierId} onChange={(e) => setLotForm({ ...lotForm, supplierId: e.target.value })}><option value="">Não informado</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label><label><span>Lote</span><input value={lotForm.batchNumber} onChange={(e) => setLotForm({ ...lotForm, batchNumber: e.target.value })} required /></label><label><span>Validade</span><input type="date" value={lotForm.expiresAt} onChange={(e) => setLotForm({ ...lotForm, expiresAt: e.target.value })} required /></label><label><span>Quantidade</span><input type="number" min="1" value={lotForm.quantity} onChange={(e) => setLotForm({ ...lotForm, quantity: e.target.value })} required /></label><label className="full-width"><span>Motivo</span><input value={lotForm.reason} onChange={(e) => setLotForm({ ...lotForm, reason: e.target.value })} placeholder="Entrada de compra, reposição..." /></label>{advancedError && <p className="form-error full-width">{advancedError}</p>}<button className="primary-button fit-button" type="submit">Registrar entrada</button></form></div></div>}
 

@@ -15,24 +15,15 @@ accountRoutes.get("/profile", (req, res) => {
 accountRoutes.put("/profile", async (req, res, next) => {
   try {
     const firstName = String(req.body?.firstName || "").trim();
-    const secondName = String(req.body?.secondName || "").trim();
     const emailRaw = String(req.body?.email || "").trim();
     const profileImagePath = String(req.body?.profileImagePath || "/assets/user-icon.png").trim();
-    const birthdateRaw = String(req.body?.birthdate || "").trim();
-
-    const birthdate = birthdateRaw ? new Date(`${birthdateRaw}T00:00:00.000Z`) : null;
-    if (birthdateRaw && Number.isNaN(birthdate.getTime())) {
-      return res.status(400).json({ error: "Data de nascimento inválida." });
-    }
 
     const user = await prisma.user.update({
       where: { id: req.user.id },
       data: {
         firstName,
-        secondName,
         ...(req.user.role === "ADMIN" ? { email: emailRaw || null, username: emailRaw || req.user.username } : {}),
-        profileImagePath: profileImagePath || "/assets/user-icon.png",
-        birthdate
+        profileImagePath: profileImagePath || "/assets/user-icon.png"
       }
     });
 

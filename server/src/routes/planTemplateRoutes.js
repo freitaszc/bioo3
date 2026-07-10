@@ -1,4 +1,7 @@
 import { Router } from "express";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { prisma } from "../prisma.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireAdmin } from "../clinicScope.js";
@@ -8,6 +11,19 @@ planTemplateRoutes.use(requireAuth);
 
 const FREQUENCIES = new Set(["WEEKLY", "BIWEEKLY", "MONTHLY"]);
 const ROUTES = new Set(["INTRAMUSCULAR", "INTRAVENOUS", "SUBCUTANEOUS"]);
+const REFERENCES_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../data/references.json");
+
+function numberOr(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function inferRoute(text = "") {
+  const value = String(text).toLowerCase();
+  if (/\b(iv|intravenos)/i.test(value)) return "INTRAVENOUS";
+  if (/\b(sc|subcut)/i.test(value)) return "SUBCUTANEOUS";
+  return "INTRAMUSCULAR";
+}
 
 function serializeTemplate(template) {
   return {
@@ -20,7 +36,13 @@ function serializeTemplate(template) {
       id: item.id,
       productName: item.productName,
       route: item.route,
-      quantity: item.quantity
+      preparation: item.preparation,
+      application: item.application,
+      quantity: item.quantity,
+      unit: item.unit,
+      sessions: item.sessions,
+      intervalDays: item.intervalDays,
+      unitPrice: Number(item.unitPrice || 0)
     })),
     createdAt: template.createdAt,
     updatedAt: template.updatedAt
@@ -36,7 +58,13 @@ function normalizeInput(body) {
   const items = rawItems.map((item) => ({
     productName: String(item?.productName || "").trim(),
     route: String(item?.route || "").trim().toUpperCase(),
-    quantity: Number(item?.quantity)
+    preparation: String(item?.preparation || "").trim(),
+    application: String(item?.application || "").trim(),
+    quantity: numberOr(item?.quantity, 0),
+    unit: String(item?.unit || "DOSE").trim().toUpperCase(),
+    sessions: numberOr(item?.sessions, sessions),
+    intervalDays: numberOr(item?.intervalDays, 7),
+    unitPrice: numberOr(item?.unitPrice, 0)
   }));
 
   return { name, description, frequency, sessions, items };
@@ -56,12 +84,51 @@ function validateInput(input) {
     if (!Number.isInteger(item.quantity) || item.quantity < 1) {
       return "A quantidade de cada produto deve ser um número inteiro maior que zero.";
     }
+    if (!item.unit) return "Informe a unidade de todos os produtos.";
+    if (!Number.isInteger(item.sessions) || item.sessions < 1 || item.sessions > 100) {
+      return "As sessões de cada produto devem ser um número inteiro entre 1 e 100.";
+    }
+    if (!Number.isInteger(item.intervalDays) || item.intervalDays < 1 || item.intervalDays > 365) {
+      return "O intervalo de cada produto deve ser um número inteiro entre 1 e 365 dias.";
+    }
+    if (!Number.isFinite(item.unitPrice) || item.unitPrice < 0) {
+      return "Informe um preço válido para todos os produtos.";
+    }
   }
 
   return null;
 }
 
 const includeItems = { items: { orderBy: { id: "asc" } } };
+
+planTemplateRoutes.get("/catalog", async (_req, res, next) => {
+  try {
+    const references = JSON.parse(await readFile(REFERENCES_PATH, "utf8"));
+    const products = new Map();
+    for (const reference of Object.values(references || {})) {
+      const medications = reference?.medications || {};
+      for (const group of [medications.low, medications.high]) {
+        const entries = Array.isArray(group) ? group : [];
+        for (const entry of entries) {
+          const name = String(entry?.nome || "").trim();
+          if (!name) continue;
+          const key = name.toLocaleLowerCase("pt-BR");
+          if (!products.has(key)) {
+            products.set(key, {
+              name,
+              preparation: String(entry?.preparo || "").trim(),
+              application: String(entry?.aplicacao || "").trim(),
+              route: inferRoute(`${entry?.preparo || ""} ${entry?.aplicacao || ""}`)
+            });
+          }
+        }
+      }
+    }
+    return res.json({ products: [...products.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")) });
+  } catch (error) {
+    next(error);
+  }
+});
 
 planTemplateRoutes.get("/", async (_req, res, next) => {
   try {

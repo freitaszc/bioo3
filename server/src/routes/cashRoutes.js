@@ -16,7 +16,9 @@ const saleInclude = {
   createdBy: { select: { id: true, firstName: true, username: true } },
   items: { include: { product: { select: { id: true, name: true } } }, orderBy: { id: "asc" } },
   installmentRows: { include: { payments: true }, orderBy: { number: "asc" } },
-  payments: { orderBy: { receivedAt: "desc" } }
+  payments: { orderBy: { receivedAt: "desc" } },
+  receipt: true,
+  fiscalDocument: true
 };
 
 function cents(value) {
@@ -82,6 +84,26 @@ function serializeSale(sale) {
       notes: payment.notes,
       receivedAt: payment.receivedAt
     })),
+    receipt: sale.receipt ? {
+      id: sale.receipt.id,
+      number: sale.receipt.number,
+      subtotal: money(sale.receipt.subtotal),
+      discountAmount: money(sale.receipt.discountAmount),
+      total: money(sale.receipt.total),
+      bioo3Share: money(sale.receipt.bioo3Share),
+      clinicShare: money(sale.receipt.clinicShare),
+      issuedAt: sale.receipt.issuedAt
+    } : null,
+    fiscalDocument: sale.fiscalDocument ? {
+      id: sale.fiscalDocument.id,
+      provider: sale.fiscalDocument.provider,
+      documentNumber: sale.fiscalDocument.documentNumber,
+      amount: money(sale.fiscalDocument.amount),
+      status: sale.fiscalDocument.status,
+      error: sale.fiscalDocument.error,
+      documentUrl: sale.fiscalDocument.documentUrl,
+      issuedAt: sale.fiscalDocument.issuedAt
+    } : null,
     createdAt: sale.createdAt,
     updatedAt: sale.updatedAt
   };
@@ -224,5 +246,57 @@ cashRoutes.post("/sales/:id/payments", async (req, res, next) => {
       return tx.sale.findUnique({ where: { id }, include: saleInclude });
     });
     return res.status(201).json({ sale: serializeSale(updatedSale) });
+  } catch (error) { next(error); }
+});
+
+cashRoutes.post("/sales/:id/receipt", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: "Venda inválida." });
+    const sale = await prisma.sale.findFirst({ where: saleWhere(req, id) });
+    if (!sale) return res.status(404).json({ error: "Venda não encontrada." });
+    const totalCents = cents(sale.total);
+    const bioo3Cents = Math.round(totalCents / 2);
+    const receipt = await prisma.receipt.upsert({
+      where: { saleId: sale.id },
+      update: {
+        subtotal: sale.subtotal,
+        discountAmount: sale.discountAmount,
+        total: sale.total,
+        bioo3Share: bioo3Cents / 100,
+        clinicShare: (totalCents - bioo3Cents) / 100
+      },
+      create: {
+        saleId: sale.id,
+        clinicId: sale.clinicId,
+        patientId: sale.patientId,
+        number: `BIOO3-REC-${sale.id}`,
+        subtotal: sale.subtotal,
+        discountAmount: sale.discountAmount,
+        total: sale.total,
+        bioo3Share: bioo3Cents / 100,
+        clinicShare: (totalCents - bioo3Cents) / 100
+      }
+    });
+    return res.status(201).json({ receipt });
+  } catch (error) { next(error); }
+});
+
+cashRoutes.post("/sales/:id/fiscal-document", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: "Venda inválida." });
+    const sale = await prisma.sale.findFirst({ where: saleWhere(req, id) });
+    if (!sale) return res.status(404).json({ error: "Venda não encontrada." });
+    const totalCents = cents(sale.total);
+    const bioo3Cents = Math.round(totalCents / 2);
+    const provider = String(process.env.FISCAL_PROVIDER || "UNCONFIGURED").trim();
+    const errorMessage = provider === "UNCONFIGURED" ? "Nenhum provedor fiscal foi configurado." : "O adaptador do provedor fiscal ainda não foi configurado.";
+    const document = await prisma.fiscalDocument.upsert({
+      where: { saleId: sale.id },
+      update: { provider, amount: bioo3Cents / 100, status: "PENDING_PROVIDER", error: errorMessage },
+      create: { saleId: sale.id, clinicId: sale.clinicId, provider, amount: bioo3Cents / 100, status: "PENDING_PROVIDER", error: errorMessage }
+    });
+    return res.status(202).json({ fiscalDocument: document, message: errorMessage });
   } catch (error) { next(error); }
 });

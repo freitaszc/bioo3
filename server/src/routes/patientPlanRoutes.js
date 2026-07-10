@@ -17,6 +17,8 @@ const includePlan = {
 };
 
 function serializePlan(plan) {
+  const items = Array.isArray(plan.items) ? plan.items : [];
+  const estimatedTotal = items.reduce((total, item) => total + (Number(item.unitPrice) || 0) * (Number(item.quantity) || 0) * (Number(item.sessions) || plan.sessions || 0), 0);
   return {
     id: plan.id,
     patientId: plan.patientId,
@@ -29,7 +31,8 @@ function serializePlan(plan) {
     frequency: plan.frequency,
     sessions: plan.sessions,
     status: plan.status,
-    items: Array.isArray(plan.items) ? plan.items : [],
+    items,
+    estimatedTotal,
     planSessions: (plan.planSessions || []).map((session) => ({
       id: session.id,
       number: session.number,
@@ -58,7 +61,13 @@ function normalizeItems(items) {
   return items.map((item) => ({
     productName: String(item?.productName || "").trim(),
     route: String(item?.route || "").trim().toUpperCase(),
-    quantity: Number(item?.quantity)
+    preparation: String(item?.preparation || "").trim(),
+    application: String(item?.application || "").trim(),
+    quantity: Number(item?.quantity),
+    unit: String(item?.unit || "DOSE").trim().toUpperCase(),
+    sessions: Number(item?.sessions ?? 4),
+    intervalDays: Number(item?.intervalDays ?? 7),
+    unitPrice: Number(item?.unitPrice ?? 0)
   }));
 }
 
@@ -68,21 +77,30 @@ function validateItems(items) {
     if (!item.productName) return "Informe o nome de todos os produtos.";
     if (!item.route) return "Informe a via de todos os produtos.";
     if (!Number.isInteger(item.quantity) || item.quantity < 1) return "A quantidade dos produtos deve ser maior que zero.";
+    if (!item.unit) return "Informe a unidade de todos os produtos.";
+    if (!Number.isInteger(item.sessions) || item.sessions < 1 || item.sessions > 100) return "As sessões de cada produto devem ser entre 1 e 100.";
+    if (!Number.isInteger(item.intervalDays) || item.intervalDays < 1 || item.intervalDays > 365) return "O intervalo deve ser entre 1 e 365 dias.";
+    if (!Number.isFinite(item.unitPrice) || item.unitPrice < 0) return "Informe um preço válido para todos os produtos.";
   }
   return null;
 }
 
 function normalizePlanInput(body, current = null) {
-  const frequency = String(body?.frequency ?? current?.frequency ?? "").trim().toUpperCase();
-  const sessions = Number(body?.sessions ?? current?.sessions);
+  const name = String(body?.name ?? current?.name ?? "").trim();
+  const frequency = String(body?.frequency ?? current?.frequency ?? "WEEKLY").trim().toUpperCase();
   const description = String(body?.description ?? current?.description ?? "").trim();
   const items = body?.items === undefined
     ? (Array.isArray(current?.items) ? current.items : [])
     : normalizeItems(body.items);
-  return { frequency, sessions, description, items };
+  const requestedSessions = body?.sessions ?? current?.sessions;
+  const sessions = requestedSessions === undefined
+    ? Math.max(1, ...items.map((item) => Number(item.sessions) || 1))
+    : Number(requestedSessions);
+  return { name, frequency, sessions, description, items };
 }
 
 function validatePlanInput(input) {
+  if (input.name.length < 2) return "Informe um nome para o plano.";
   if (!FREQUENCIES.has(input.frequency)) return "Informe uma frequência válida.";
   if (!Number.isInteger(input.sessions) || input.sessions < 1 || input.sessions > 100) return "A quantidade de sessões deve ser um número inteiro entre 1 e 100.";
   return validateItems(input.items);
@@ -115,19 +133,23 @@ patientPlanRoutes.get("/", async (req, res, next) => {
 patientPlanRoutes.post("/", async (req, res, next) => {
   try {
     const patientId = Number(req.body?.patientId);
-    const templateId = Number(req.body?.templateId);
-    if (!Number.isInteger(patientId) || !Number.isInteger(templateId)) return res.status(400).json({ error: "Selecione o paciente e o modelo do plano." });
+    const hasTemplate = req.body?.templateId !== undefined && req.body?.templateId !== null && req.body?.templateId !== "";
+    const templateId = hasTemplate ? Number(req.body.templateId) : null;
+    if (!Number.isInteger(patientId) || (hasTemplate && !Number.isInteger(templateId))) return res.status(400).json({ error: "Selecione um paciente válido." });
 
     const patient = await findPatient(req, patientId);
     if (!patient) return res.status(404).json({ error: "Paciente não encontrado." });
-    const template = await prisma.planTemplate.findUnique({ where: { id: templateId }, include: { items: { orderBy: { id: "asc" } } } });
-    if (!template) return res.status(404).json({ error: "Modelo de plano não encontrado." });
+    const template = templateId
+      ? await prisma.planTemplate.findUnique({ where: { id: templateId }, include: { items: { orderBy: { id: "asc" } } } })
+      : null;
+    if (templateId && !template) return res.status(404).json({ error: "Modelo de plano não encontrado." });
 
     const input = normalizePlanInput({
-      frequency: req.body?.frequency ?? template.frequency,
-      sessions: req.body?.sessions ?? template.sessions,
+      name: req.body?.name ?? template?.name,
+      frequency: req.body?.frequency ?? template?.frequency ?? "WEEKLY",
+      sessions: req.body?.sessions ?? template?.sessions ?? 4,
       description: req.body?.description,
-      items: req.body?.items ?? template.items
+      items: req.body?.items ?? template?.items ?? []
     });
     const validationError = validatePlanInput(input);
     if (validationError) return res.status(400).json({ error: validationError });
@@ -137,8 +159,8 @@ patientPlanRoutes.post("/", async (req, res, next) => {
         data: {
           patientId: patient.id,
           clinicId: patient.clinicId,
-          templateId: template.id,
-          name: template.name,
+          templateId: template?.id ?? null,
+          name: input.name,
           description: input.description,
           frequency: input.frequency,
           sessions: input.sessions,
@@ -176,6 +198,7 @@ patientPlanRoutes.put("/:id", async (req, res, next) => {
       const updated = await tx.patientPlan.update({
         where: { id },
         data: {
+          name: input.name,
           description: input.description,
           frequency: input.frequency,
           sessions: input.sessions,

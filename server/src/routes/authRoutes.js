@@ -71,7 +71,7 @@ authRoutes.post("/register", async (req, res, next) => {
         }
       });
     }
-    return res.status(201).json({ message: "Cadastro enviado para aprovação. O administrador analisará o acesso na seção de Clínicas." });
+    return res.status(201).json({ message: "Cadastro enviado para aprovação." });
   } catch (error) {
     if (error.code === "P2002") return res.status(409).json({ error: "Este e-mail já possui um cadastro." });
     next(error);

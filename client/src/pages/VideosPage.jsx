@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { VideoListSkeleton } from "../components/Skeleton";
-import Topbar from "../components/Topbar";
 
 export default function VideosPage() {
   const [videos, setVideos] = useState([]);
@@ -18,7 +17,6 @@ export default function VideosPage() {
 
   return (
     <div className="app-frame">
-      <Topbar />
       <main className="page-shell">
         <section className="page-heading">
           <div>

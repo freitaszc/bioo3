@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { AgendaSkeleton } from "../components/Skeleton";
-import Topbar from "../components/Topbar";
+import ActionButton from "../components/ActionButton";
 
 const emptyEvent = {
   title: "",
@@ -115,7 +115,6 @@ export default function AgendaPage() {
 
   return (
     <div className="app-frame">
-      <Topbar />
       <main className="page-shell">
         <section className="page-heading">
           <div>
@@ -186,7 +185,7 @@ export default function AgendaPage() {
               <label><span>Horário</span><input type="time" value={eventForm.time} onChange={(event) => setEventForm({ ...eventForm, time: event.target.value })} required /></label>
               <label className="full-width"><span>Notas</span><textarea value={eventForm.notes} onChange={(event) => setEventForm({ ...eventForm, notes: event.target.value })} rows="4" /></label>
               <div className="modal-actions full-width">
-                {editingEvent && <button className="danger-button" type="button" onClick={deleteEvent}>Remover</button>}
+                {editingEvent && <ActionButton action="delete" onClick={deleteEvent}>Remover evento</ActionButton>}
                 <button className="primary-button" type="submit">Salvar evento</button>
               </div>
             </form>

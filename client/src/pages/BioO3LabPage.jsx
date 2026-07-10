@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
-import Topbar from "../components/Topbar";
 import { useAuth } from "../AuthContext";
 import { TableSkeleton } from "../components/Skeleton";
+import ActionButton from "../components/ActionButton";
 
 const emptyManual = {
   name: "",
@@ -369,7 +369,6 @@ export default function BioO3LabPage() {
 
   return (
     <div className="app-frame">
-      <Topbar />
       <main className="page-shell">
         <section className="page-heading">
           <div>
@@ -546,15 +545,7 @@ export default function BioO3LabPage() {
                         )}
                       </td>
                       <td className="lab-value-actions">
-                        <button
-                          className="remove-lab-value"
-                          type="button"
-                          onClick={() => removePreviewValue(item.testName)}
-                          aria-label={`Remover exame ${item.testName}`}
-                          title="Remover exame"
-                        >
-                          ×
-                        </button>
+                        <ActionButton action="delete" iconOnly onClick={() => removePreviewValue(item.testName)} aria-label={`Remover exame ${item.testName}`} />
                       </td>
                     </tr>
                   ))}
@@ -616,14 +607,14 @@ export default function BioO3LabPage() {
               </>
             ) : (
               <>
-                <div className="doctor-list-heading"><div><p className="eyebrow">Prescritores</p><h2>Prescritores cadastrados</h2></div><button className="primary-button compact-button" type="button" onClick={() => openDoctorForm()}>Adicionar</button></div>
+                <div className="doctor-list-heading"><div><p className="eyebrow">Prescritores</p><h2>Prescritores cadastrados</h2></div></div>
                 {doctorError && <p className="form-error">{doctorError}</p>}
                 {doctorLoading ? <TableSkeleton columns={4} rows={5} /> : <div className="table-wrap">
                   <table className="control-table doctor-table">
                     <thead><tr><th>Nome</th><th>Telefone</th><th>Conselho</th><th aria-label="Ações"></th></tr></thead>
                     <tbody>
                       {doctors.map((doctor) => (
-                        <tr key={doctor.id}><td><strong>{doctor.name}</strong>{doctor.clinic?.name && <small>{doctor.clinic.name}</small>}</td><td>{doctor.phone || "—"}</td><td><span className="council-value"><b>{doctor.councilType || "—"}</b><span>{doctor.councilNumber || "Não cadastrado"}</span></span></td><td><div className="icon-actions"><button className="icon-button edit" type="button" onClick={() => openDoctorForm(doctor)} aria-label={`Editar ${doctor.name}`} title="Editar">✎</button><button className="icon-button delete" type="button" onClick={() => deleteDoctor(doctor)} aria-label={`Excluir ${doctor.name}`} title="Excluir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" /></svg></button></div></td></tr>
+                        <tr key={doctor.id}><td><strong>{doctor.name}</strong>{doctor.clinic?.name && <small>{doctor.clinic.name}</small>}</td><td>{doctor.phone || "—"}</td><td><span className="council-value"><b>{doctor.councilType || "—"}</b><span>{doctor.councilNumber || "Não cadastrado"}</span></span></td><td><div className="icon-actions"><ActionButton action="edit" iconOnly onClick={() => openDoctorForm(doctor)} aria-label={`Editar ${doctor.name}`} /><ActionButton action="delete" iconOnly onClick={() => deleteDoctor(doctor)} aria-label={`Excluir ${doctor.name}`} /></div></td></tr>
                       ))}
                       {!doctors.length && <tr><td colSpan="4" className="center">Nenhum prescritor cadastrado.</td></tr>}
                     </tbody>

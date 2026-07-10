@@ -12,8 +12,6 @@ model User {
   username         String          @unique
   passwordHash     String
   firstName        String          @default("")
-  secondName       String          @default("")
-  birthdate        DateTime?
   email            String?         @unique
   profileImagePath String          @default("/assets/user-icon.png")
   createdAt        DateTime        @default(now())
@@ -47,6 +45,8 @@ model Clinic {
   stockMovements  StockMovement[]
   sales           Sale[]
   payments        Payment[]
+  receipts        Receipt[]
+  fiscalDocuments FiscalDocument[]
 
   @@index([name])
   @@index([status])
@@ -122,6 +122,7 @@ model Patient {
   patientPlans  PatientPlan[]
   stockMovements StockMovement[]
   sales          Sale[]
+  receipts       Receipt[]
   clinicId      Int
   clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
@@ -181,13 +182,19 @@ model PlanTemplate {
 }
 
 model PlanTemplateItem {
-  id          Int         @id @default(autoincrement())
-  templateId  Int
-  productName String
-  route       String
-  quantity    Int
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id           Int         @id @default(autoincrement())
+  templateId   Int
+  productName  String
+  route        String
+  preparation  String      @default("")
+  application  String      @default("")
+  quantity     Int
+  unit         String      @default("DOSE")
+  sessions     Int         @default(4)
+  intervalDays Int         @default(7)
+  unitPrice    Decimal     @default(0) @db.Decimal(10, 2)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
   template    PlanTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@index([templateId])
@@ -331,6 +338,8 @@ model Sale {
   installmentRows  Installment[]
   payments         Payment[]
   stockMovements   StockMovement[]
+  receipt          Receipt?
+  fiscalDocument   FiscalDocument?
 
   @@index([clinicId])
   @@index([patientId])
@@ -390,6 +399,49 @@ model Payment {
   @@index([installmentId])
   @@index([clinicId])
   @@index([receivedAt])
+}
+
+model Receipt {
+  id            Int       @id @default(autoincrement())
+  saleId        Int       @unique
+  clinicId      Int
+  patientId     Int?
+  number        String    @unique
+  subtotal      Decimal   @db.Decimal(10, 2)
+  discountAmount Decimal  @db.Decimal(10, 2)
+  total         Decimal   @db.Decimal(10, 2)
+  bioo3Share    Decimal   @db.Decimal(10, 2)
+  clinicShare   Decimal   @db.Decimal(10, 2)
+  issuedAt      DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  sale          Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  clinic        Clinic    @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient       Patient?  @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([issuedAt])
+}
+
+model FiscalDocument {
+  id             Int       @id @default(autoincrement())
+  saleId         Int       @unique
+  clinicId       Int
+  provider       String
+  documentNumber String?
+  amount         Decimal   @db.Decimal(10, 2)
+  status         String    @default("PENDING_PROVIDER")
+  error          String    @default("")
+  documentUrl    String?
+  issuedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  sale           Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  clinic         Clinic    @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+
+  @@index([clinicId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model AgendaEvent {

@@ -137,6 +137,8 @@ export const api = {
   sale: (id) => request(`/cash/sales/${id}`),
   createSale: (payload) => request("/cash/sales", { method: "POST", body: JSON.stringify(payload) }),
   createPayment: (saleId, payload) => request(`/cash/sales/${saleId}/payments`, { method: "POST", body: JSON.stringify(payload) }),
+  createReceipt: (saleId) => request(`/cash/sales/${saleId}/receipt`, { method: "POST" }),
+  requestFiscalDocument: (saleId) => request(`/cash/sales/${saleId}/fiscal-document`, { method: "POST" }),
   agendaEvents: (month) => request(`/agenda${month ? `?month=${month}` : ""}`),
   createAgendaEvent: (payload) => request("/agenda", {
     method: "POST",
@@ -184,6 +186,7 @@ export const api = {
   setClinicStatus: (id, status) => request(`/admin/clinics/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
   setClinicEmail: (id, email) => request(`/admin/clinics/${id}/email`, { method: "PATCH", body: JSON.stringify({ email }) }),
   planTemplates: () => request("/plan-templates"),
+  planCatalog: () => request("/plan-templates/catalog"),
   createPlanTemplate: (payload) => request("/plan-templates", {
     method: "POST",
     body: JSON.stringify(payload)

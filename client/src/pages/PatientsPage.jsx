@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { TableSkeleton } from "../components/Skeleton";
-import Topbar from "../components/Topbar";
+import ActionButton from "../components/ActionButton";
 
 const emptyPatient = {
   name: "",
@@ -105,9 +105,25 @@ export default function PatientsPage() {
     api.deletePatients(selectedPatientIds).then(() => loadPatients()).catch((err) => setError(err.message));
   }
 
+  async function togglePatientStatus(patient) {
+    const nextStatus = patient.status === "Ativo" ? "Inativo" : "Ativo";
+    const previousPatients = patients;
+    setError("");
+    setPatients((current) => current
+      .map((item) => item.id === patient.id ? { ...item, status: nextStatus } : item)
+      .filter((item) => !status || item.status === status));
+    try {
+      const response = await api.updatePatientStatus(patient.id, nextStatus);
+      const updatedPatient = response.patient;
+      setPatients((current) => current.map((item) => item.id === patient.id ? { ...item, ...updatedPatient } : item));
+    } catch (err) {
+      setPatients(previousPatients);
+      setError(err.message);
+    }
+  }
+
   return (
     <div className="app-frame">
-      <Topbar />
       <main className="page-shell">
         <section className="page-heading">
           <div><p className="eyebrow">Pacientes</p><h1>Catálogo de pacientes</h1><p className="page-subtitle">Abra o prontuário para consultar e editar cada paciente.</p></div>
@@ -120,7 +136,7 @@ export default function PatientsPage() {
             <select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Todos</option><option value="Ativo">Ativo</option><option value="Inativo">Inativo</option></select>
             <button className="secondary-button" type="submit">Filtrar</button>
           </form>
-          <div className="bulk-actions"><span>{selectedPatientIds.length} selecionado(s)</span><button className="danger-button" type="button" onClick={deleteSelectedPatients} disabled={!selectedPatientIds.length}>Apagar selecionados</button></div>
+          <div className="bulk-actions"><span>{selectedPatientIds.length} selecionado(s)</span><ActionButton action="delete" onClick={deleteSelectedPatients} disabled={!selectedPatientIds.length}>Apagar selecionados</ActionButton></div>
           {error && <p className="form-error">{error}</p>}
           {loading && <TableSkeleton columns={7} />}
           {!loading && !error && <div className="table-wrap">
@@ -131,7 +147,7 @@ export default function PatientsPage() {
                   <td className="center"><input type="checkbox" checked={selectedPatientIds.includes(patient.id)} onChange={() => togglePatientSelection(patient.id)} aria-label={`Selecionar ${patient.name}`} /></td>
                   <td><button className="patient-name-button" type="button" onClick={() => openProntuario(patient.id)}>{patient.name}</button></td>
                   <td>{patient.clinicName || "—"}</td><td>{patient.phone || "Não informado"}</td><td>{patient.doctorName}</td>
-                  <td><span className={`status-pill ${patient.status === "Ativo" ? "active" : "muted"}`}>{patient.status}</span></td>
+                  <td><button className={`status-pill patient-status-button ${patient.status === "Ativo" ? "active" : "muted"}`} type="button" onClick={() => togglePatientStatus(patient)} title={patient.status === "Ativo" ? "Clique para inativar" : "Clique para ativar"}>{patient.status}</button></td>
                   <td className="center"><button className="secondary-button compact-button" type="button" onClick={() => openProntuario(patient.id)}>Prontuário</button></td>
                 </tr>)}
                 {!patients.length && <tr><td colSpan="7"><div className="empty-state compact-empty">Nenhum paciente encontrado.</div></td></tr>}

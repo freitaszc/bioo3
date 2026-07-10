@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { RouteSkeleton } from "./components/Skeleton";
 import AccountPage from "./pages/AccountPage";
@@ -12,11 +12,11 @@ import StockPage from "./pages/StockPage";
 import VideoPage from "./pages/VideoPage";
 import VideosPage from "./pages/VideosPage";
 import ClinicsPage from "./pages/ClinicsPage";
-import PlanTemplatesPage from "./pages/PlanTemplatesPage";
 import ProntuarioPage from "./pages/ProntuarioPage";
 import CashPage from "./pages/CashPage";
+import Topbar from "./components/Topbar";
 
-function ProtectedRoute({ children }) {
+function ProtectedLayout() {
   const { loading, user } = useAuth();
 
   if (loading) {
@@ -27,7 +27,7 @@ function ProtectedRoute({ children }) {
     return <Navigate to="/login" replace />;
   }
 
-  return children;
+  return <div className="app-shell"><Topbar /><Outlet /></div>;
 }
 
 export default function App() {
@@ -36,18 +36,19 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/privacy-policy" element={<StaticPage type="privacy" />} />
       <Route path="/about" element={<StaticPage type="about" />} />
-      <Route path="/inicio" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-      <Route path="/videoaulas" element={<ProtectedRoute><VideosPage /></ProtectedRoute>} />
-      <Route path="/videoaulas/:id" element={<ProtectedRoute><VideoPage /></ProtectedRoute>} />
-      <Route path="/bioo3-lab" element={<ProtectedRoute><BioO3LabPage /></ProtectedRoute>} />
-      <Route path="/pacientes" element={<ProtectedRoute><PatientsPage /></ProtectedRoute>} />
-      <Route path="/pacientes/:id" element={<ProtectedRoute><ProntuarioPage /></ProtectedRoute>} />
-      <Route path="/estoque" element={<ProtectedRoute><StockPage /></ProtectedRoute>} />
-      <Route path="/caixa" element={<ProtectedRoute><CashPage /></ProtectedRoute>} />
-      <Route path="/agenda" element={<ProtectedRoute><AgendaPage /></ProtectedRoute>} />
-      <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
-      <Route path="/admin/clinics" element={<ProtectedRoute><ClinicsPage /></ProtectedRoute>} />
-      <Route path="/admin/plan-templates" element={<ProtectedRoute><PlanTemplatesPage /></ProtectedRoute>} />
+      <Route element={<ProtectedLayout />}>
+        <Route path="/inicio" element={<HomePage />} />
+        <Route path="/videoaulas" element={<VideosPage />} />
+        <Route path="/videoaulas/:id" element={<VideoPage />} />
+        <Route path="/bioo3-lab" element={<BioO3LabPage />} />
+        <Route path="/pacientes" element={<PatientsPage />} />
+        <Route path="/pacientes/:id" element={<ProntuarioPage />} />
+        <Route path="/estoque" element={<StockPage />} />
+        <Route path="/caixa" element={<CashPage />} />
+        <Route path="/agenda" element={<AgendaPage />} />
+        <Route path="/account" element={<AccountPage />} />
+        <Route path="/admin/clinics" element={<ClinicsPage />} />
+      </Route>
       <Route path="*" element={<Navigate to="/inicio" replace />} />
     </Routes>
   );
