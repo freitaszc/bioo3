@@ -53,18 +53,21 @@ agendaRoutes.get("/", async (req, res, next) => {
     const monthEnd = new Date(monthStart);
     monthEnd.setMonth(monthEnd.getMonth() + 1);
 
-    const events = await prisma.agendaEvent.findMany({
-      where: {
-        startsAt: {
-          gte: monthStart,
-          lt: monthEnd
-        }, ...clinicWhere(req)
-      },
-      include: { clinic: true, patient: true },
-      orderBy: [{ startsAt: "asc" }, { id: "asc" }]
-    });
+    const [events, totalEvents] = await Promise.all([
+      prisma.agendaEvent.findMany({
+        where: {
+          startsAt: {
+            gte: monthStart,
+            lt: monthEnd
+          }, ...clinicWhere(req)
+        },
+        include: { clinic: true, patient: true },
+        orderBy: [{ startsAt: "asc" }, { id: "asc" }]
+      }),
+      prisma.agendaEvent.count({ where: clinicWhere(req) })
+    ]);
 
-    return res.json({ events: events.map(serializeEvent) });
+    return res.json({ events: events.map(serializeEvent), summary: { totalEvents } });
   } catch (error) {
     next(error);
   }

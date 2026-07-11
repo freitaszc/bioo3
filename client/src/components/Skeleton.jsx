@@ -77,6 +77,19 @@ export function TableSkeleton({ columns = 5, rows = 6 }) {
   );
 }
 
+export function SummarySkeleton({ className = "" }) {
+  return (
+    <div className={`summary-grid summary-skeleton ${className}`.trim()} aria-label="Carregando resumo">
+      {Array.from({ length: 3 }, (_, index) => (
+        <div key={index}>
+          <SkeletonBlock className="summary-number-skeleton" />
+          <SkeletonBlock className="summary-label-skeleton" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function AgendaSkeleton() {
   return (
     <div className="agenda-grid agenda-skeleton" aria-label="Carregando agenda">

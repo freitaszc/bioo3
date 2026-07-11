@@ -1650,23 +1650,17 @@ select:focus {
   gap: 8px;
 }
 
-.inventory-summary-panel {
-  margin-top: 22px;
-}
-
-.stock-page {
+.inventory-overview {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--line);
 }
 
-.stock-page > .inventory-summary-panel {
-  order: 1;
-  margin-top: 0;
-  margin-bottom: 22px;
-}
-
-.stock-page > .panel:not(.inventory-summary-panel) {
-  order: 2;
+.inventory-overview .summary-grid {
+  flex: 1;
 }
 
 .cash-feedback {
@@ -1798,13 +1792,13 @@ select:focus {
   font-weight: 800;
 }
 
-.inventory-summary-grid {
+.summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
-.inventory-summary-grid div {
+.summary-grid div {
   display: grid;
   gap: 5px;
   padding: 16px;
@@ -1813,15 +1807,29 @@ select:focus {
   background: var(--surface-soft);
 }
 
-.inventory-summary-grid strong {
+.summary-grid strong {
   color: var(--accent-dark);
   font-size: 28px;
 }
 
-.inventory-summary-grid span {
+.summary-grid span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 850;
+}
+
+.summary-number-skeleton {
+  width: 76px;
+  height: 34px;
+}
+
+.summary-label-skeleton {
+  width: min(150px, 72%);
+  height: 12px;
+}
+
+.table-summary {
+  margin-bottom: 20px;
 }
 
 .inventory-modal {
@@ -2726,8 +2734,13 @@ select:focus {
     flex-direction: column;
   }
 
-  .inventory-summary-grid {
+  .summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .inventory-overview {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .cash-line,

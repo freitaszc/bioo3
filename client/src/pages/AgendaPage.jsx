@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { AgendaSkeleton } from "../components/Skeleton";
+import { AgendaSkeleton, SummarySkeleton } from "../components/Skeleton";
 import ActionButton from "../components/ActionButton";
 
 const emptyEvent = {
@@ -38,6 +38,7 @@ function buildCalendarDays(currentMonth) {
 export default function AgendaPage() {
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [events, setEvents] = useState([]);
+  const [totalEvents, setTotalEvents] = useState(0);
   const [patients, setPatients] = useState([]);
   const [eventForm, setEventForm] = useState(emptyEvent);
   const [editingEvent, setEditingEvent] = useState(null);
@@ -54,12 +55,16 @@ export default function AgendaPage() {
       return acc;
     }, {});
   }, [events]);
+  const scheduledPatients = useMemo(() => new Set(events.filter((event) => event.patientId).map((event) => event.patientId)).size, [events]);
 
   function loadEvents(month = currentMonth) {
     setLoading(true);
     setError("");
     return api.agendaEvents(monthKey(month))
-      .then((data) => setEvents(data.events || []))
+      .then((data) => {
+        setEvents(data.events || []);
+        setTotalEvents(data.summary?.totalEvents || 0);
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }
@@ -138,6 +143,11 @@ export default function AgendaPage() {
         </section>
 
         <section className="panel agenda-panel">
+          {loading ? <SummarySkeleton className="table-summary" /> : <div className="summary-grid table-summary">
+            <div><strong>{events.length}</strong><span>Compromissos no mês</span></div>
+            <div><strong>{scheduledPatients}</strong><span>Pacientes agendados</span></div>
+            <div><strong>{totalEvents}</strong><span>Total de compromissos</span></div>
+          </div>}
           <div className="agenda-toolbar">
             <button className="secondary-button compact-button" type="button" onClick={() => changeMonth(-1)}>Anterior</button>
             <h2>{formatMonth(currentMonth)}</h2>

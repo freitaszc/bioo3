@@ -60,18 +60,27 @@ patientRoutes.get("/", async (req, res, next) => {
   try {
     const search = String(req.query.search || "").trim();
     const status = String(req.query.status || "").trim();
+    const recentSince = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
-    const patients = await prisma.patient.findMany({
-      where: {
-        ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
-        ...(status ? { status } : {}),
-        ...clinicWhere(req)
-      },
-      include: { doctor: true, clinic: true },
-      orderBy: [{ name: "asc" }, { id: "asc" }]
+    const [patients, totalPatients, recentAnalyses, recentPatients] = await Promise.all([
+      prisma.patient.findMany({
+        where: {
+          ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
+          ...(status ? { status } : {}),
+          ...clinicWhere(req)
+        },
+        include: { doctor: true, clinic: true },
+        orderBy: [{ name: "asc" }, { id: "asc" }]
+      }),
+      prisma.patient.count({ where: clinicWhere(req) }),
+      prisma.analysisEvent.count({ where: { createdAt: { gte: recentSince }, ...clinicWhere(req) } }),
+      prisma.patient.count({ where: { createdAt: { gte: recentSince }, ...clinicWhere(req) } })
+    ]);
+
+    return res.json({
+      patients: patients.map(serializePatient),
+      summary: { totalPatients, recentAnalyses, recentPatients }
     });
-
-    return res.json({ patients: patients.map(serializePatient) });
   } catch (error) {
     next(error);
   }

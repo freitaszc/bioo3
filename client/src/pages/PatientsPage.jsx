@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
-import { TableSkeleton } from "../components/Skeleton";
+import { SummarySkeleton, TableSkeleton } from "../components/Skeleton";
 import ActionButton from "../components/ActionButton";
 
 const emptyPatient = {
@@ -36,6 +36,7 @@ function PatientForm({ doctors, form, setForm, onSubmit, submitLabel, error }) {
 export default function PatientsPage() {
   const navigate = useNavigate();
   const [patients, setPatients] = useState([]);
+  const [patientSummary, setPatientSummary] = useState({ totalPatients: 0, recentAnalyses: 0, recentPatients: 0 });
   const [doctors, setDoctors] = useState([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
@@ -52,6 +53,7 @@ export default function PatientsPage() {
     return api.patients(filters)
       .then((data) => {
         setPatients(data.patients || []);
+        setPatientSummary(data.summary || { totalPatients: 0, recentAnalyses: 0, recentPatients: 0 });
         setSelectedPatientIds([]);
       })
       .catch((err) => setError(err.message))
@@ -131,6 +133,11 @@ export default function PatientsPage() {
         </section>
 
         <section className="panel">
+          {loading ? <SummarySkeleton className="table-summary" /> : <div className="summary-grid table-summary">
+            <div><strong>{patientSummary.totalPatients}</strong><span>Total de pacientes</span></div>
+            <div><strong>{patientSummary.recentAnalyses}</strong><span>Análises (14 dias)</span></div>
+            <div><strong>{patientSummary.recentPatients}</strong><span>Novos pacientes (14 dias)</span></div>
+          </div>}
           <form className="filter-bar" onSubmit={handleFilter}>
             <input type="search" placeholder="Pesquisar paciente..." value={search} onChange={(event) => setSearch(event.target.value)} />
             <select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Todos</option><option value="Ativo">Ativo</option><option value="Inativo">Inativo</option></select>
