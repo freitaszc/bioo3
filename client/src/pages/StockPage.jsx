@@ -39,6 +39,9 @@ export default function StockPage() {
   const [advancedMessage, setAdvancedMessage] = useState("");
   const [advancedError, setAdvancedError] = useState("");
   const [advancedLoading, setAdvancedLoading] = useState(true);
+  const [productSubmitting, setProductSubmitting] = useState(false);
+  const [movementSubmitting, setMovementSubmitting] = useState(false);
+  const [deletingProducts, setDeletingProducts] = useState(false);
 
   function loadProducts(filters = { search, status }) {
     setLoading(true);
@@ -96,28 +99,42 @@ export default function StockPage() {
 
   async function submitLot(event) {
     event.preventDefault(); setAdvancedError(""); setAdvancedMessage("");
+    if (productSubmitting) return;
+    setProductSubmitting(true);
     try {
-      let productId = lotForm.productId;
-      if (productId === "new") {
-        const data = await api.createProduct({ ...form, quantity: 0 });
-        productId = data.product.id;
-      }
-      await api.createStockLot({ ...lotForm, productId });
-      await Promise.all([loadProducts(), loadAdvanced()]);
-      setAdvancedMessage(productId === lotForm.productId ? "Lote cadastrado e entrada registrada." : "Produto e lote cadastrados com sucesso.");
-      setLotForm({ ...emptyLot, productId });
+      const creatingProduct = lotForm.productId === "new";
+      await api.createStockLot({
+        ...lotForm,
+        productId: creatingProduct ? "" : lotForm.productId,
+        ...(creatingProduct ? { product: form } : {})
+      });
+      setAdvancedModal(null);
+      setAdvancedMessage(creatingProduct ? "Produto criado e entrada registrada com sucesso." : "Entrada do produto registrada com sucesso.");
+      setLotForm({ ...emptyLot, productId: "new" });
       setForm(emptyProduct);
-    } catch (err) { setAdvancedError(err.message); }
+      await Promise.all([loadProducts(), loadAdvanced()]);
+    } catch (err) {
+      setAdvancedError(err.message);
+    } finally {
+      setProductSubmitting(false);
+    }
   }
 
   async function submitMovement(event) {
     event.preventDefault(); setAdvancedError(""); setAdvancedMessage("");
+    if (movementSubmitting) return;
+    setMovementSubmitting(true);
     try {
       const data = await api.createStockMovement(movementForm);
-      await Promise.all([loadProducts(), loadAdvanced()]);
-      setAdvancedMessage(data.warnings?.length ? `Movimentação registrada com alerta: ${data.warnings.join(" ")}` : "Movimentação registrada.");
+      setAdvancedModal(null);
+      setAdvancedMessage(data.warnings?.length ? `Movimentação registrada com alerta: ${data.warnings.join(" ")}` : "Movimentação registrada com sucesso.");
       setMovementForm(emptyMovement);
-    } catch (err) { setAdvancedError(err.message); }
+      await Promise.all([loadProducts(), loadAdvanced()]);
+    } catch (err) {
+      setAdvancedError(err.message);
+    } finally {
+      setMovementSubmitting(false);
+    }
   }
 
   function openEdit(product) {
@@ -131,20 +148,22 @@ export default function StockPage() {
     setModalMode("edit");
   }
 
-  function submitProduct(event) {
+  async function submitProduct(event) {
     event.preventDefault();
-    const action = editingProduct
-      ? api.updateProduct(editingProduct.id, form)
-      : api.createProduct(form);
-
-    action
-      .then(() => {
-        setModalMode(null);
-        setEditingProduct(null);
-        setForm(emptyProduct);
-        return loadProducts();
-      })
-      .catch((err) => setError(err.message));
+    if (productSubmitting) return;
+    setProductSubmitting(true); setError("");
+    try {
+      await api.updateProduct(editingProduct.id, form);
+      setModalMode(null);
+      setEditingProduct(null);
+      setForm(emptyProduct);
+      setAdvancedMessage("Produto atualizado com sucesso.");
+      await loadProducts();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setProductSubmitting(false);
+    }
   }
 
   function toggleSelection(id) {
@@ -159,12 +178,20 @@ export default function StockPage() {
     ));
   }
 
-  function deleteSelected() {
+  async function deleteSelected() {
     if (!selectedIds.length) return;
     if (!window.confirm(`Remover ${selectedIds.length} produto(s) selecionado(s)?`)) return;
-    api.deleteProducts(selectedIds)
-      .then(() => loadProducts())
-      .catch((err) => setError(err.message));
+    if (deletingProducts) return;
+    setDeletingProducts(true); setError(""); setAdvancedMessage("");
+    try {
+      const data = await api.deleteProducts(selectedIds);
+      setAdvancedMessage(`${data.deletedCount} produto(s) removido(s) com sucesso.`);
+      await loadProducts();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDeletingProducts(false);
+    }
   }
 
   function toggleStatus(product) {
@@ -215,8 +242,8 @@ export default function StockPage() {
 
           <div className="bulk-actions">
             <span>{selectedIds.length} selecionado(s)</span>
-            <button className="danger-button" type="button" onClick={deleteSelected} disabled={!selectedIds.length}>
-              Apagar selecionados
+            <button className="danger-button" type="button" onClick={deleteSelected} disabled={!selectedIds.length || deletingProducts}>
+              {deletingProducts ? "Apagando..." : "Apagar selecionados"}
             </button>
           </div>
 
@@ -273,7 +300,7 @@ export default function StockPage() {
               <label><span>Quantidade</span><input type="number" min="0" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} required /></label>
               <label><span>Preço de compra</span><input type="number" min="0" step="0.01" value={form.purchasePrice} onChange={(event) => setForm({ ...form, purchasePrice: event.target.value })} required /></label>
               <label><span>Preço de venda</span><input type="number" min="0" step="0.01" value={form.salePrice} onChange={(event) => setForm({ ...form, salePrice: event.target.value })} required /></label>
-              <button className="secondary-button stock-save-button" type="submit">Salvar produto</button>
+              <button className="secondary-button stock-save-button" type="submit" disabled={productSubmitting}>{productSubmitting ? "Salvando..." : "Salvar produto"}</button>
             </form>
           </div>
         </div>
@@ -281,9 +308,9 @@ export default function StockPage() {
 
       {advancedModal === "supplier" && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card inventory-modal"><button className="modal-close" type="button" onClick={() => setAdvancedModal(null)}>×</button><h2>Fornecedores</h2><form className="form-grid" onSubmit={submitSupplier}><label><span>Nome</span><input value={supplierForm.name} onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })} required /></label><label><span>Contato</span><input value={supplierForm.contact} onChange={(e) => setSupplierForm({ ...supplierForm, contact: e.target.value })} /></label><label><span>Telefone</span><input value={supplierForm.phone} onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })} /></label><label><span>E-mail</span><input type="email" value={supplierForm.email} onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })} /></label><label className="full-width"><span>Observações</span><textarea rows="3" value={supplierForm.notes} onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })} /></label>{advancedError && <p className="form-error full-width">{advancedError}</p>}<button className="primary-button fit-button" type="submit">Cadastrar fornecedor</button></form><div className="inventory-list">{suppliers.map((supplier) => <div className="inventory-list-row" key={supplier.id}><div><strong>{supplier.name}</strong><small>{supplier.phone || supplier.email || "Sem contato informado"}</small></div><ActionButton action="delete" iconOnly onClick={() => deleteSupplier(supplier)} aria-label={`Excluir ${supplier.name}`} /></div>)}{!suppliers.length && <p className="muted-text">Nenhum fornecedor cadastrado.</p>}</div></div></div>}
 
-      {advancedModal === "lot" && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card inventory-modal"><button className="modal-close" type="button" onClick={() => setAdvancedModal(null)}>×</button><h2>Cadastrar produto</h2><form className="form-grid" onSubmit={submitLot}><label><span>Produto</span><select value={lotForm.productId} onChange={(e) => setLotForm({ ...lotForm, productId: e.target.value })} required><option value="new">Cadastrar novo produto</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label>{lotForm.productId === "new" && <><label><span>Nome do produto</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></label><label><span>Preço de compra</span><input type="number" min="0" step="0.01" value={form.purchasePrice} onChange={(e) => setForm({ ...form, purchasePrice: e.target.value })} required /></label><label><span>Preço de venda</span><input type="number" min="0" step="0.01" value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} required /></label></>}<label><span>Fornecedor</span><select value={lotForm.supplierId} onChange={(e) => setLotForm({ ...lotForm, supplierId: e.target.value })}><option value="">Não informado</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label><label><span>Lote</span><input value={lotForm.batchNumber} onChange={(e) => setLotForm({ ...lotForm, batchNumber: e.target.value })} required /></label><label><span>Validade</span><input type="date" value={lotForm.expiresAt} onChange={(e) => setLotForm({ ...lotForm, expiresAt: e.target.value })} required /></label><label><span>Quantidade</span><input type="number" min="1" value={lotForm.quantity} onChange={(e) => setLotForm({ ...lotForm, quantity: e.target.value })} required /></label><label className="full-width"><span>Motivo</span><input value={lotForm.reason} onChange={(e) => setLotForm({ ...lotForm, reason: e.target.value })} placeholder="Entrada de compra, reposição..." /></label>{advancedError && <p className="form-error full-width">{advancedError}</p>}<button className="primary-button fit-button" type="submit">Registrar entrada</button></form></div></div>}
+      {advancedModal === "lot" && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card inventory-modal"><button className="modal-close" type="button" onClick={() => setAdvancedModal(null)} disabled={productSubmitting}>×</button><h2>Cadastrar produto</h2><form className="form-grid" onSubmit={submitLot}><label><span>Produto</span><select value={lotForm.productId} onChange={(e) => setLotForm({ ...lotForm, productId: e.target.value })} required><option value="new">Cadastrar novo produto</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label>{lotForm.productId === "new" && <><label><span>Nome do produto</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></label><label><span>Preço de compra</span><input type="number" min="0" step="0.01" value={form.purchasePrice} onChange={(e) => setForm({ ...form, purchasePrice: e.target.value })} required /></label><label><span>Preço de venda</span><input type="number" min="0" step="0.01" value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} required /></label></>}<label><span>Fornecedor</span><select value={lotForm.supplierId} onChange={(e) => setLotForm({ ...lotForm, supplierId: e.target.value })}><option value="">Não informado</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label><label><span>Lote</span><input value={lotForm.batchNumber} onChange={(e) => setLotForm({ ...lotForm, batchNumber: e.target.value })} required /></label><label><span>Validade</span><input type="date" value={lotForm.expiresAt} onChange={(e) => setLotForm({ ...lotForm, expiresAt: e.target.value })} required /></label><label><span>Quantidade</span><input type="number" min="1" value={lotForm.quantity} onChange={(e) => setLotForm({ ...lotForm, quantity: e.target.value })} required /></label><label className="full-width"><span>Motivo</span><input value={lotForm.reason} onChange={(e) => setLotForm({ ...lotForm, reason: e.target.value })} placeholder="Entrada de compra, reposição..." /></label>{advancedError && <p className="form-error full-width">{advancedError}</p>}<button className="primary-button fit-button" type="submit" disabled={productSubmitting}>{productSubmitting ? "Criando produto..." : "Registrar entrada"}</button></form></div></div>}
 
-      {advancedModal === "movement" && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card inventory-modal"><button className="modal-close" type="button" onClick={() => setAdvancedModal(null)}>×</button><h2>Movimentar estoque</h2><p className="muted-text">Vendas e consumos não são bloqueados por estoque insuficiente ou lote vencido; um alerta será exibido.</p><form className="form-grid" onSubmit={submitMovement}><label><span>Produto</span><select value={movementForm.productId} onChange={(e) => setMovementForm({ ...movementForm, productId: e.target.value, lotId: "" })} required><option value="">Selecione</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · estoque {product.quantity}</option>)}</select></label><label><span>Tipo</span><select value={movementForm.type} onChange={(e) => setMovementForm({ ...movementForm, type: e.target.value })}>{Object.entries(movementTypes).filter(([value]) => value !== "RECEIPT").map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label><span>Lote</span><select value={movementForm.lotId} onChange={(e) => setMovementForm({ ...movementForm, lotId: e.target.value })}><option value="">Nenhum lote específico</option>{lots.filter((lot) => String(lot.productId) === String(movementForm.productId)).map((lot) => <option key={lot.id} value={lot.id}>{lot.batchNumber} · saldo {lot.quantity}</option>)}</select></label><label><span>Quantidade</span><input type="number" min="1" value={movementForm.quantity} onChange={(e) => setMovementForm({ ...movementForm, quantity: e.target.value })} required /></label><label><span>Paciente ID (opcional)</span><input type="number" min="1" value={movementForm.patientId} onChange={(e) => setMovementForm({ ...movementForm, patientId: e.target.value })} /></label><label><span>Plano ID (opcional)</span><input type="number" min="1" value={movementForm.patientPlanId} onChange={(e) => setMovementForm({ ...movementForm, patientPlanId: e.target.value })} /></label><label className="full-width"><span>Motivo</span><input value={movementForm.reason} onChange={(e) => setMovementForm({ ...movementForm, reason: e.target.value })} placeholder="Obrigatório para saída, consumo e ajuste" /></label>{advancedError && <p className="form-error full-width">{advancedError}</p>}<button className="primary-button fit-button" type="submit">Registrar movimentação</button></form></div></div>}
+      {advancedModal === "movement" && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card inventory-modal"><button className="modal-close" type="button" onClick={() => setAdvancedModal(null)} disabled={movementSubmitting}>×</button><h2>Movimentar estoque</h2><p className="muted-text">Vendas e consumos não são bloqueados por estoque insuficiente ou lote vencido; um alerta será exibido.</p><form className="form-grid" onSubmit={submitMovement}><label><span>Produto</span><select value={movementForm.productId} onChange={(e) => setMovementForm({ ...movementForm, productId: e.target.value, lotId: "" })} required><option value="">Selecione</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · estoque {product.quantity}</option>)}</select></label><label><span>Tipo</span><select value={movementForm.type} onChange={(e) => setMovementForm({ ...movementForm, type: e.target.value })}>{Object.entries(movementTypes).filter(([value]) => value !== "RECEIPT").map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label><span>Lote</span><select value={movementForm.lotId} onChange={(e) => setMovementForm({ ...movementForm, lotId: e.target.value })}><option value="">Nenhum lote específico</option>{lots.filter((lot) => String(lot.productId) === String(movementForm.productId)).map((lot) => <option key={lot.id} value={lot.id}>{lot.batchNumber} · saldo {lot.quantity}</option>)}</select></label><label><span>Quantidade</span><input type="number" min="1" value={movementForm.quantity} onChange={(e) => setMovementForm({ ...movementForm, quantity: e.target.value })} required /></label><label><span>Paciente ID (opcional)</span><input type="number" min="1" value={movementForm.patientId} onChange={(e) => setMovementForm({ ...movementForm, patientId: e.target.value })} /></label><label><span>Plano ID (opcional)</span><input type="number" min="1" value={movementForm.patientPlanId} onChange={(e) => setMovementForm({ ...movementForm, patientPlanId: e.target.value })} /></label><label className="full-width"><span>Motivo</span><input value={movementForm.reason} onChange={(e) => setMovementForm({ ...movementForm, reason: e.target.value })} placeholder="Obrigatório para saída, consumo e ajuste" /></label>{advancedError && <p className="form-error full-width">{advancedError}</p>}<button className="primary-button fit-button" type="submit" disabled={movementSubmitting}>{movementSubmitting ? "Registrando..." : "Registrar movimentação"}</button></form></div></div>}
 
       {advancedModal === "history" && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card inventory-history-modal"><button className="modal-close" type="button" onClick={() => setAdvancedModal(null)}>×</button><h2>Histórico de estoque</h2><div className="table-wrap"><table className="control-table"><thead><tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Qtd.</th><th>Motivo</th></tr></thead><tbody>{movements.map((movement) => <tr key={movement.id}><td>{new Intl.DateTimeFormat("pt-BR").format(new Date(movement.createdAt))}</td><td>{movement.productName}</td><td>{movement.typeLabel}</td><td>{movement.quantity}</td><td>{movement.reason || "—"}{movement.patientName && <small className="movement-context">Paciente: {movement.patientName}</small>}{movement.patientPlanName && <small className="movement-context">Plano: {movement.patientPlanName}</small>}</td></tr>)}{!movements.length && <tr><td colSpan="5"><div className="empty-state compact-empty">Nenhuma movimentação registrada.</div></td></tr>}</tbody></table></div></div></div>}
     </div>

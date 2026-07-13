@@ -98,8 +98,28 @@ function parseDate(value) {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
+function normalizeNewProduct(body) {
+  return {
+    name: String(body?.name || "").trim(),
+    quantity: 0,
+    minStock: Number(body?.minStock ?? 5),
+    purchasePrice: Number(body?.purchasePrice),
+    salePrice: Number(body?.salePrice)
+  };
+}
+
+function isValidNewProduct(product) {
+  return Boolean(product.name)
+    && Number.isInteger(product.minStock)
+    && product.minStock >= 0
+    && Number.isFinite(product.purchasePrice)
+    && product.purchasePrice >= 0
+    && Number.isFinite(product.salePrice)
+    && product.salePrice >= 0;
+}
+
 async function scopedProduct(req, productId, clinicId) {
-  const product = await prisma.product.findFirst({ where: { id: productId, clinicId } });
+  const product = await prisma.product.findFirst({ where: { id: productId, clinicId, deletedAt: null } });
   if (!product) {
     const error = new Error("Produto não encontrado.");
     error.statusCode = 404;
@@ -191,29 +211,32 @@ inventoryRoutes.get("/lots", async (req, res, next) => {
 
 inventoryRoutes.post("/lots", async (req, res, next) => {
   try {
-    const productId = Number(req.body?.productId);
+    const requestedProductId = req.body?.productId ? Number(req.body.productId) : null;
+    const newProduct = requestedProductId === null ? normalizeNewProduct(req.body?.product) : null;
     const supplierId = req.body?.supplierId ? Number(req.body.supplierId) : null;
     const batchNumber = String(req.body?.batchNumber || "").trim();
     const quantity = Number(req.body?.quantity);
     const expiresAt = parseDate(req.body?.expiresAt);
     const clinicId = selectedClinicId(req, { required: true });
     await requireActiveClinic(prisma, clinicId);
-    if (!Number.isInteger(productId) || !batchNumber || !Number.isInteger(quantity) || quantity < 1 || !expiresAt) {
+    if ((requestedProductId === null ? !isValidNewProduct(newProduct) : !Number.isInteger(requestedProductId)) || !batchNumber || !Number.isInteger(quantity) || quantity < 1 || !expiresAt) {
       return res.status(400).json({ error: "Informe produto, lote, quantidade e uma validade válida." });
     }
-    const product = await scopedProduct(req, productId, clinicId);
+    const existingProduct = requestedProductId === null ? null : await scopedProduct(req, requestedProductId, clinicId);
     if (supplierId !== null) {
       const supplier = await prisma.supplier.findFirst({ where: { id: supplierId, clinicId } });
       if (!supplier) return res.status(404).json({ error: "Fornecedor não encontrado." });
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      const product = existingProduct || await tx.product.create({ data: { ...newProduct, clinicId } });
+      const productId = product.id;
       const lot = await tx.stockLot.create({ data: { productId, clinicId, supplierId, batchNumber, expiresAt, quantity }, include: { product: true, supplier: true } });
       await tx.product.update({ where: { id: product.id }, data: { quantity: { increment: quantity } } });
       await tx.stockMovement.create({ data: { productId, clinicId, lotId: lot.id, userId: req.user.id, type: "RECEIPT", quantity, reason: String(req.body?.reason || "Entrada de lote").trim() } });
-      return lot;
+      return { lot, productCreated: !existingProduct };
     });
-    return res.status(201).json({ lot: serializeLot(result), movementType: "RECEIPT" });
+    return res.status(201).json({ lot: serializeLot(result.lot), productCreated: result.productCreated, movementType: "RECEIPT" });
   } catch (error) {
     if (error.code === "P2002") return res.status(409).json({ error: "Este lote já está cadastrado para o produto." });
     next(error);

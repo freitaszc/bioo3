@@ -157,6 +157,7 @@ model Product {
   status        String   @default("Ativo")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
   clinicId      Int
   clinic        Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
   stockLots     StockLot[]
@@ -166,6 +167,7 @@ model Product {
   @@index([name])
   @@index([status])
   @@index([clinicId])
+  @@index([deletedAt])
 }
 
 model PlanTemplate {

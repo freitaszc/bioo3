@@ -163,17 +163,19 @@ cashRoutes.post("/sales", async (req, res, next) => {
     }
     if (source === "PLAN" && !plan) return res.status(400).json({ error: "Selecione o plano que originou a venda." });
 
-    const productIds = rawItems.map((item) => Number(item?.productId));
-    if (productIds.some((id) => !Number.isInteger(id))) return res.status(400).json({ error: "Produto inválido." });
-    const products = await prisma.product.findMany({ where: { id: { in: productIds }, clinicId } });
+    const requestedItems = rawItems.map((item) => ({ productId: Number(item?.productId), quantity: Number(item?.quantity) }));
+    if (requestedItems.some((item) => !Number.isInteger(item.productId))) return res.status(400).json({ error: "Produto inválido." });
+    if (requestedItems.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1)) return res.status(400).json({ error: "A quantidade dos produtos deve ser maior que zero." });
+
+    const quantityByProduct = new Map();
+    for (const item of requestedItems) {
+      quantityByProduct.set(item.productId, (quantityByProduct.get(item.productId) || 0) + item.quantity);
+    }
+    const productIds = [...quantityByProduct.keys()];
+    const products = await prisma.product.findMany({ where: { id: { in: productIds }, clinicId, deletedAt: null } });
     const productMap = new Map(products.map((product) => [product.id, product]));
-    const items = rawItems.map((item) => {
-      const product = productMap.get(Number(item.productId));
-      const quantity = Number(item.quantity);
-      return { product, quantity };
-    });
+    const items = productIds.map((productId) => ({ product: productMap.get(productId), quantity: quantityByProduct.get(productId) }));
     if (items.some((item) => !item.product)) return res.status(404).json({ error: "Um ou mais produtos não foram encontrados." });
-    if (items.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1)) return res.status(400).json({ error: "A quantidade dos produtos deve ser maior que zero." });
 
     const warnings = [];
     for (const item of items) if (item.product.quantity < item.quantity) warnings.push(`${item.product.name}: quantidade acima do estoque atual.`);
@@ -197,17 +199,20 @@ cashRoutes.post("/sales", async (req, res, next) => {
           installments,
           items: { create: items.map((item) => ({ productId: item.product.id, productName: item.product.name, quantity: item.quantity, unitPrice: Number(item.product.salePrice), total: cents(item.product.salePrice) * item.quantity / 100 })) },
           installmentRows: { create: installmentAmounts.map((amount, index) => ({ number: index + 1, amount })) }
-        },
-        include: saleInclude
+        }
       });
       for (const item of items) {
         await tx.product.update({ where: { id: item.product.id }, data: { quantity: { decrement: item.quantity } } });
         await tx.stockMovement.create({ data: { productId: item.product.id, clinicId, userId: req.user.id, patientId: created.patientId, patientPlanId: created.patientPlanId, saleId: created.id, type: "SALE", quantity: item.quantity, reason: `Venda #${created.id}` } });
       }
-      return created;
+      return tx.sale.findUnique({ where: { id: created.id }, include: saleInclude });
     });
     return res.status(201).json({ sale: serializeSale(sale), warnings });
-  } catch (error) { next(error); }
+  } catch (error) {
+    if (error.code === "P2025") return res.status(409).json({ error: "Um produto da venda foi alterado. Atualize a página e tente novamente." });
+    if (error.code === "P2003") return res.status(400).json({ error: "Não foi possível registrar a venda porque um dos vínculos informados não é mais válido." });
+    next(error);
+  }
 });
 
 cashRoutes.post("/sales/:id/payments", async (req, res, next) => {

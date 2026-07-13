@@ -32,6 +32,18 @@ function normalizeProductInput(body) {
   };
 }
 
+function isValidProductInput(input) {
+  return Boolean(input.name)
+    && Number.isInteger(input.quantity)
+    && input.quantity >= 0
+    && Number.isInteger(input.minStock)
+    && input.minStock >= 0
+    && Number.isFinite(input.purchasePrice)
+    && input.purchasePrice >= 0
+    && Number.isFinite(input.salePrice)
+    && input.salePrice >= 0;
+}
+
 productRoutes.get("/", async (req, res, next) => {
   try {
     const search = String(req.query.search || "").trim();
@@ -40,6 +52,7 @@ productRoutes.get("/", async (req, res, next) => {
 
     const products = await prisma.product.findMany({
       where: {
+        deletedAt: null,
         ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
         ...(status ? { status } : {}),
         ...(stock === "in_stock" ? { quantity: { gt: 0 } } : {}),
@@ -64,8 +77,8 @@ productRoutes.post("/", async (req, res, next) => {
     const input = normalizeProductInput(req.body);
     const clinicId = selectedClinicId(req, { required: true });
     await requireActiveClinic(prisma, clinicId);
-    if (!input.name) {
-      return res.status(400).json({ error: "Nome do produto é obrigatório." });
+    if (!isValidProductInput(input)) {
+      return res.status(400).json({ error: "Informe nome, quantidades e preços válidos para o produto." });
     }
 
     const product = await prisma.product.create({ data: { ...input, clinicId }, include: { clinic: true } });
@@ -79,12 +92,12 @@ productRoutes.put("/:id", async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const input = normalizeProductInput(req.body);
-    if (!Number.isInteger(id) || !input.name) {
+    if (!Number.isInteger(id) || !isValidProductInput(input)) {
       return res.status(400).json({ error: "Produto inválido." });
     }
 
     const product = await prisma.product.update({
-      where: { id, ...clinicWhere(req) },
+      where: { id, deletedAt: null, ...clinicWhere(req) },
       data: input,
       include: { clinic: true }
     });
@@ -105,7 +118,7 @@ productRoutes.patch("/:id/status", async (req, res, next) => {
       return res.status(400).json({ error: "Status inválido." });
     }
 
-    const product = await prisma.product.update({ where: { id, ...clinicWhere(req) }, data: { status }, include: { clinic: true } });
+    const product = await prisma.product.update({ where: { id, deletedAt: null, ...clinicWhere(req) }, data: { status }, include: { clinic: true } });
     return res.json({ product: serializeProduct(product) });
   } catch (error) {
     if (error.code === "P2025") {
@@ -122,7 +135,10 @@ productRoutes.post("/bulk-delete", async (req, res, next) => {
       return res.status(400).json({ error: "Selecione pelo menos um produto." });
     }
 
-    const result = await prisma.product.deleteMany({ where: { id: { in: ids }, ...clinicWhere(req) } });
+    const result = await prisma.product.updateMany({
+      where: { id: { in: ids }, deletedAt: null, ...clinicWhere(req) },
+      data: { deletedAt: new Date(), status: "Inativo" }
+    });
     return res.json({ deletedCount: result.count });
   } catch (error) {
     next(error);
@@ -136,13 +152,11 @@ productRoutes.delete("/:id", async (req, res, next) => {
       return res.status(400).json({ error: "Produto inválido." });
     }
 
-    const result = await prisma.product.deleteMany({ where: { id, ...clinicWhere(req) } });
+    const result = await prisma.product.updateMany({
+      where: { id, deletedAt: null, ...clinicWhere(req) },
+      data: { deletedAt: new Date(), status: "Inativo" }
+    });
     if (!result.count) return res.status(404).json({ error: "Produto não encontrado." });
     return res.status(204).send();
-  } catch (error) {
-    if (error.code === "P2025") {
-      return res.status(404).json({ error: "Produto não encontrado." });
-    }
-    handleScopeError(error, res, next);
-  }
+  } catch (error) { handleScopeError(error, res, next); }
 });
