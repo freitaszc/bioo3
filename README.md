@@ -132,7 +132,3 @@ The root `build` script applies database migrations before building the client. 
 ## Security
 
 Please read [SECURITY.md](SECURITY.md) before reporting or investigating a vulnerability. Do not open a public issue containing credentials, private keys, patient information, medical reports, or other sensitive data.
-
-## License
-
-No license has been selected yet. Add an appropriate `LICENSE` file before presenting this project as open source.
