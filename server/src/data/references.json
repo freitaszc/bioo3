@@ -157,16 +157,6 @@
           "nome": "ADEK2 600.000 UI",
           "preparo": "Aplicar intramuscular lento e profundo, usar agulha 0,7x30mm, observando que essa aplicação deve ser realizada no quadrante superior externo do glúteo (não administrar no deltoide). Observação: Não deixar o óleo retornar, risco de agressão cutânea gerando vermelhidão local.",
           "aplicacao": "Aplicar dose única (IM)."
-        },
-        {
-          "nome": "Vitamina D3",
-          "preparo": "Aplicar intramuscular lento e profundo, usar agulha 0,7x30mm, observando que essa aplicação deve ser realizada no quadrante superior externo do glúteo (não administrar no deltoide). Observação: Não deixar o óleo retornar, risco de agressão cutânea gerando vermelhidão local.",
-          "aplicacao": "Aplicar dose única (IM)."
-        },
-        {
-          "nome": "Moreflex",
-          "preparo": "Diluir conforme orientação do fabricante.",
-          "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
         }
       ],
       "high": ""
@@ -1595,11 +1585,6 @@
       "low": [
         {
           "nome": "B12 2.500mg",
-          "preparo": "Diluir conforme orientação do fabricante.",
-          "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
-        },
-        {
-          "nome": "Trio Metilador",
           "preparo": "Diluir conforme orientação do fabricante.",
           "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
         }
