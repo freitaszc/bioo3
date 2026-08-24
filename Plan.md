@@ -4,10 +4,10 @@
 
 | Area | Code status | Notes |
 |---|---|---|
-| Registration with clinic/location, email, and password | Implemented | Name and location are provided together |
-| Registration approval and rejection | Implemented | The administrator controls this from the Clinics section |
-| Email notifications | Not planned for now | No SMTP configuration is required for the current workflow |
-| Suspend, reactivate, and change email | Implemented | Administrator-only |
+| Administrator-only access | Implemented | Public clinic registration and clinic-user login are disabled |
+| Clinic management | Implemented | The administrator creates, edits, activates, inactivates, and removes empty clinics |
+| Clinic WhatsApp destinations | Implemented | Each clinic stores the WhatsApp that receives its patient reports |
+| Central WhatsApp sender | Implemented | Meta Embedded Signup, encrypted token, delivery queue, and status webhooks |
 | Administrative access to data | Implemented | Works in the current modules |
 | Clinic filtering | Implemented | Patients, inventory, calendar, dashboard, and Lab |
 | Cash register filtering by clinic | Pending | Cash register does not exist yet |
@@ -16,6 +16,7 @@
 | Prescriber with registration number | Implemented | Council type and registration number |
 | Prescriber on PDF | Implemented | Name and registration number appear in the printout |
 | Analysis printing | Implemented | Page is ready for printing/PDF |
+| Batch PDF analysis | Implemented | Up to 50 patients, persistent review, B12/D3 summary, private originals, and server reports |
 | Basic inventory | Implemented | Products, quantities, and prices |
 | Batch, expiration date, supplier, and movements | Implemented | Advanced inventory records lots, suppliers, movements, linked users, clinics, patients, and plans |
 | Global plan templates | Retained for historical compatibility | No longer shown in navigation or required for new plans |
@@ -26,11 +27,10 @@
 
 ## Roadmap
 
-1. **Finalize the registration and administration workflow**
-   - Keep clinic registrations pending until reviewed by the administrator.
-   - Allow the administrator to approve or reject registrations directly in the Clinics section.
-   - Do not configure SMTP or send email notifications at this stage.
-   - Maintain one access account per clinic.
+1. **Administration and clinic organization**
+   - Maintain a single useful administrator login.
+   - Register clinics as organizational records without creating access accounts.
+   - Store one WhatsApp destination per clinic and preserve inactive clinics with historical data.
 
 2. **Product catalog**
    - The product catalog comes from the BioO3 Lab references and remains available when a clinic creates a patient plan.
@@ -86,10 +86,11 @@
 
 ## Tests and Acceptance Criteria
 
-- Registration uses a single field for the clinic name/location.
-- Registration remains pending until administrative approval.
-- The administrator can approve or reject registrations from the Clinics section.
-- No email or SMTP configuration is required for the current approval workflow.
+- Only the administrator can authenticate and access operational APIs.
+- Clinics are created in the Clinics section with a valid WhatsApp destination.
+- Clinics with historical data are inactivated instead of physically removed.
+- Batch analysis separates patients, requires review, and persists only B12/D3 results and report status.
+- WhatsApp bulk sending queues one report per altered patient and preserves delivery status.
 - Clinics and the administrator can create plans directly for authorized patients.
 - Clicking a patient opens the Prontuário page instead of a detail modal.
 - Patient information is edited from the Prontuário page.
@@ -127,4 +128,4 @@
 - The system will allow a sale even when inventory is incorrect.
 - BioO3 will issue an official invoice for its half.
 - The clinic will invoice its half in another system.
-- Clinic registration approval is handled by the administrator in the Clinics section; email notifications are deferred.
+- Clinics are organizational records managed by the administrator and do not have their own login.

@@ -20,18 +20,20 @@ model User {
   stockMovements   StockMovement[]
   sales            Sale[]
   payments         Payment[]
+  analysisBatches  AnalysisBatch[]
   role             String          @default("CLINIC")
   clinicId         Int?            @unique
   clinic           Clinic?         @relation(fields: [clinicId], references: [id], onDelete: SetNull)
 }
 
 model Clinic {
-  id              Int             @id @default(autoincrement())
+  id              Int              @id @default(autoincrement())
   name            String
-  status          String          @default("PENDING")
-  rejectionReason String          @default("")
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  status          String           @default("PENDING")
+  rejectionReason String           @default("")
+  whatsappPhone   String           @default("")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   user            User?
   analysisEvents  AnalysisEvent[]
   doctors         Doctor[]
@@ -47,6 +49,7 @@ model Clinic {
   payments        Payment[]
   receipts        Receipt[]
   fiscalDocuments FiscalDocument[]
+  analysisBatches AnalysisBatch[]
 
   @@index([name])
   @@index([status])
@@ -80,16 +83,17 @@ model Video {
 }
 
 model Doctor {
-  id        Int      @id @default(autoincrement())
-  name      String
-  phone     String   @default("")
-  councilType   String @default("")
-  councilNumber String @default("")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  patients  Patient[]
-  clinicId  Int
-  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  id              Int             @id @default(autoincrement())
+  name            String
+  phone           String          @default("")
+  councilType     String          @default("")
+  councilNumber   String          @default("")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  patients        Patient[]
+  analysisBatches AnalysisBatch[]
+  clinicId        Int
+  clinic          Clinic          @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
   @@unique([clinicId, name])
   @@index([clinicId])
@@ -101,36 +105,179 @@ model ReferenceOverride {
   ideal     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   @@unique([testName])
 }
 
 model Patient {
-  id            Int            @id @default(autoincrement())
-  name          String
-  age           Int
-  cpf           String         @default("")
-  gender        String         @default("")
-  phone         String         @default("")
-  status        String         @default("Ativo")
-  prescription  String         @default("")
-  doctorId      Int?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  doctor        Doctor?        @relation(fields: [doctorId], references: [id], onDelete: SetNull)
-  consultations Consultation[]
-  agendaEvents  AgendaEvent[]
+  id             Int             @id @default(autoincrement())
+  name           String
+  age            Int
+  cpf            String          @default("")
+  gender         String          @default("")
+  phone          String          @default("")
+  status         String          @default("Ativo")
+  prescription   String          @default("")
+  doctorId       Int?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  doctor         Doctor?         @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  consultations  Consultation[]
+  agendaEvents   AgendaEvent[]
   analysisEvents AnalysisEvent[]
-  patientPlans  PatientPlan[]
+  patientPlans   PatientPlan[]
   stockMovements StockMovement[]
   sales          Sale[]
   receipts       Receipt[]
-  clinicId      Int
-  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  labAnalyses    LabAnalysis[]
+  clinicId       Int
+  clinic         Clinic          @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
   @@index([name])
   @@index([status])
   @@index([doctorId])
   @@index([clinicId])
+}
+
+model AnalysisBatch {
+  id             String               @id @default(cuid())
+  clinicId       Int
+  doctorId       Int
+  createdById    Int?
+  status         String               @default("PROCESSING")
+  candidateCount Int                  @default(0)
+  processedCount Int                  @default(0)
+  error          String               @default("")
+  confirmedAt    DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  clinic         Clinic               @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  doctor         Doctor               @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  createdBy      User?                @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  sourceFiles    AnalysisSourceFile[]
+  analyses       LabAnalysis[]
+
+  @@index([clinicId])
+  @@index([doctorId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AnalysisSourceFile {
+  id         String        @id @default(cuid())
+  batchId    String
+  fileName   String
+  storageKey String        @unique
+  size       Int
+  pageCount  Int           @default(0)
+  expiresAt  DateTime
+  purgedAt   DateTime?
+  createdAt  DateTime      @default(now())
+  batch      AnalysisBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  analyses   LabAnalysis[]
+
+  @@index([batchId])
+  @@index([expiresAt])
+}
+
+model LabAnalysis {
+  id               String             @id @default(cuid())
+  batchId          String
+  sourceFileId     String
+  patientId        Int?
+  pageStart        Int
+  pageEnd          Int
+  patientName      String             @default("")
+  patientAge       Int                @default(0)
+  patientCpf       String             @default("")
+  patientGender    String             @default("")
+  matchingStatus   String             @default("NEW")
+  status           String             @default("DRAFT")
+  diagnosisText    String             @default("")
+  prescriptionText String             @default("")
+  hasAlteration    Boolean            @default(false)
+  error            String             @default("")
+  confirmedAt      DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  batch            AnalysisBatch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  sourceFile       AnalysisSourceFile @relation(fields: [sourceFileId], references: [id], onDelete: Cascade)
+  patient          Patient?           @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  results          LabResult[]
+  documents        AnalysisDocument[]
+  whatsappDelivery WhatsAppDelivery?
+
+  @@index([batchId])
+  @@index([sourceFileId])
+  @@index([patientId])
+  @@index([status])
+}
+
+model LabResult {
+  id         String      @id @default(cuid())
+  analysisId String
+  testName   String
+  value      Float?
+  rawValue   String      @default("")
+  unit       String      @default("")
+  ideal      String
+  status     String      @default("MISSING")
+  edited     Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  analysis   LabAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@unique([analysisId, testName])
+  @@index([testName])
+  @@index([status])
+}
+
+model AnalysisDocument {
+  id         String      @id @default(cuid())
+  analysisId String
+  kind       String      @default("REPORT")
+  fileName   String
+  storageKey String      @unique
+  size       Int
+  expiresAt  DateTime
+  purgedAt   DateTime?
+  createdAt  DateTime    @default(now())
+  analysis   LabAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@unique([analysisId, kind])
+  @@index([expiresAt])
+}
+
+model WhatsAppConnection {
+  id                   Int       @id @default(1)
+  status               String    @default("DISCONNECTED")
+  businessAccountId    String    @default("")
+  phoneNumberId        String    @default("")
+  displayPhone         String    @default("")
+  encryptedAccessToken String    @default("")
+  connectedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+model WhatsAppDelivery {
+  id             String      @id @default(cuid())
+  analysisId     String      @unique
+  recipientPhone String
+  templateName   String
+  metaMessageId  String?     @unique
+  status         String      @default("QUEUED")
+  attempts       Int         @default(0)
+  lastError      String      @default("")
+  sentAt         DateTime?
+  deliveredAt    DateTime?
+  readAt         DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  analysis       LabAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([createdAt])
 }
 
 model Consultation {
@@ -148,21 +295,21 @@ model Consultation {
 }
 
 model Product {
-  id            Int      @id @default(autoincrement())
-  name          String
-  quantity      Int      @default(0)
-  minStock      Int      @default(5)
-  purchasePrice Decimal  @default(0) @db.Decimal(10, 2)
-  salePrice     Decimal  @default(0) @db.Decimal(10, 2)
-  status        String   @default("Ativo")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  deletedAt     DateTime?
-  clinicId      Int
-  clinic        Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
-  stockLots     StockLot[]
+  id             Int             @id @default(autoincrement())
+  name           String
+  quantity       Int             @default(0)
+  minStock       Int             @default(5)
+  purchasePrice  Decimal         @default(0) @db.Decimal(10, 2)
+  salePrice      Decimal         @default(0) @db.Decimal(10, 2)
+  status         String          @default("Ativo")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+  clinicId       Int
+  clinic         Clinic          @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  stockLots      StockLot[]
   stockMovements StockMovement[]
-  saleItems     SaleItem[]
+  saleItems      SaleItem[]
 
   @@index([name])
   @@index([status])
@@ -171,57 +318,57 @@ model Product {
 }
 
 model PlanTemplate {
-  id          Int                @id @default(autoincrement())
-  name        String
-  description String             @default("")
-  frequency   String
-  sessions    Int                @default(4)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  items       PlanTemplateItem[]
+  id           Int                @id @default(autoincrement())
+  name         String
+  description  String             @default("")
+  frequency    String
+  sessions     Int                @default(4)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  items        PlanTemplateItem[]
   patientPlans PatientPlan[]
 
   @@index([name])
 }
 
 model PlanTemplateItem {
-  id           Int         @id @default(autoincrement())
+  id           Int          @id @default(autoincrement())
   templateId   Int
   productName  String
   route        String
-  preparation  String      @default("")
-  application  String      @default("")
+  preparation  String       @default("")
+  application  String       @default("")
   quantity     Int
-  unit         String      @default("DOSE")
-  sessions     Int         @default(4)
-  intervalDays Int         @default(7)
-  unitPrice    Decimal     @default(0) @db.Decimal(10, 2)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  template    PlanTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  unit         String       @default("DOSE")
+  sessions     Int          @default(4)
+  intervalDays Int          @default(7)
+  unitPrice    Decimal      @default(0) @db.Decimal(10, 2)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  template     PlanTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@index([templateId])
 }
 
 model PatientPlan {
-  id          Int          @id @default(autoincrement())
-  patientId   Int
-  clinicId    Int
-  templateId  Int?
-  name        String
-  description String       @default("")
-  frequency   String
-  sessions    Int
-  status      String       @default("QUOTE")
-  items       Json
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  patient     Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  clinic      Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
-  template    PlanTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  planSessions PlanSession[]
+  id             Int             @id @default(autoincrement())
+  patientId      Int
+  clinicId       Int
+  templateId     Int?
+  name           String
+  description    String          @default("")
+  frequency      String
+  sessions       Int
+  status         String          @default("QUOTE")
+  items          Json
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  patient        Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinic         Clinic          @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  template       PlanTemplate?   @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  planSessions   PlanSession[]
   stockMovements StockMovement[]
-  sales        Sale[]
+  sales          Sale[]
 
   @@index([patientId])
   @@index([clinicId])
@@ -247,16 +394,16 @@ model PlanSession {
 }
 
 model Supplier {
-  id        Int       @id @default(autoincrement())
+  id        Int        @id @default(autoincrement())
   name      String
-  contact   String    @default("")
-  phone     String    @default("")
-  email     String    @default("")
-  notes     String    @default("")
+  contact   String     @default("")
+  phone     String     @default("")
+  email     String     @default("")
+  notes     String     @default("")
   clinicId  Int
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  clinic    Clinic    @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  clinic    Clinic     @relation(fields: [clinicId], references: [id], onDelete: Restrict)
   stockLots StockLot[]
 
   @@unique([clinicId, name])
@@ -265,19 +412,19 @@ model Supplier {
 }
 
 model StockLot {
-  id           Int             @id @default(autoincrement())
-  productId    Int
-  clinicId     Int
-  supplierId   Int?
-  batchNumber  String
-  expiresAt    DateTime?
-  quantity     Int             @default(0)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  product      Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
-  clinic       Clinic          @relation(fields: [clinicId], references: [id], onDelete: Restrict)
-  supplier     Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  movements    StockMovement[]
+  id          Int             @id @default(autoincrement())
+  productId   Int
+  clinicId    Int
+  supplierId  Int?
+  batchNumber String
+  expiresAt   DateTime?
+  quantity    Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  product     Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  clinic      Clinic          @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  supplier    Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  movements   StockMovement[]
 
   @@unique([productId, batchNumber])
   @@index([clinicId])
@@ -319,30 +466,30 @@ model StockMovement {
 }
 
 model Sale {
-  id               Int           @id @default(autoincrement())
-  clinicId         Int
-  patientId        Int?
-  patientPlanId    Int?
-  createdById      Int?
-  source           String
-  status           String        @default("OPEN")
-  subtotal         Decimal       @db.Decimal(10, 2)
-  discountPercent  Decimal       @default(0) @db.Decimal(5, 2)
-  discountAmount   Decimal       @default(0) @db.Decimal(10, 2)
-  total            Decimal       @db.Decimal(10, 2)
-  installments     Int           @default(1)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  clinic           Clinic        @relation(fields: [clinicId], references: [id], onDelete: Restrict)
-  patient          Patient?      @relation(fields: [patientId], references: [id], onDelete: SetNull)
-  patientPlan      PatientPlan?  @relation(fields: [patientPlanId], references: [id], onDelete: SetNull)
-  createdBy        User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  items            SaleItem[]
-  installmentRows  Installment[]
-  payments         Payment[]
-  stockMovements   StockMovement[]
-  receipt          Receipt?
-  fiscalDocument   FiscalDocument?
+  id              Int             @id @default(autoincrement())
+  clinicId        Int
+  patientId       Int?
+  patientPlanId   Int?
+  createdById     Int?
+  source          String
+  status          String          @default("OPEN")
+  subtotal        Decimal         @db.Decimal(10, 2)
+  discountPercent Decimal         @default(0) @db.Decimal(5, 2)
+  discountAmount  Decimal         @default(0) @db.Decimal(10, 2)
+  total           Decimal         @db.Decimal(10, 2)
+  installments    Int             @default(1)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  clinic          Clinic          @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient         Patient?        @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  patientPlan     PatientPlan?    @relation(fields: [patientPlanId], references: [id], onDelete: SetNull)
+  createdBy       User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  items           SaleItem[]
+  installmentRows Installment[]
+  payments        Payment[]
+  stockMovements  StockMovement[]
+  receipt         Receipt?
+  fiscalDocument  FiscalDocument?
 
   @@index([clinicId])
   @@index([patientId])
@@ -352,31 +499,31 @@ model Sale {
 }
 
 model SaleItem {
-  id          Int      @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   saleId      Int
   productId   Int
   productName String
   quantity    Int
-  unitPrice   Decimal  @db.Decimal(10, 2)
-  total       Decimal  @db.Decimal(10, 2)
-  sale        Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  unitPrice   Decimal @db.Decimal(10, 2)
+  total       Decimal @db.Decimal(10, 2)
+  sale        Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product     Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([saleId])
   @@index([productId])
 }
 
 model Installment {
-  id         Int        @id @default(autoincrement())
-  saleId     Int
-  number     Int
-  amount     Decimal    @db.Decimal(10, 2)
-  dueDate    DateTime?
-  status     String     @default("PENDING")
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  sale       Sale       @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  payments   Payment[]
+  id        Int       @id @default(autoincrement())
+  saleId    Int
+  number    Int
+  amount    Decimal   @db.Decimal(10, 2)
+  dueDate   DateTime?
+  status    String    @default("PENDING")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  sale      Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  payments  Payment[]
 
   @@unique([saleId, number])
   @@index([saleId])
@@ -405,21 +552,21 @@ model Payment {
 }
 
 model Receipt {
-  id            Int       @id @default(autoincrement())
-  saleId        Int       @unique
-  clinicId      Int
-  patientId     Int?
-  number        String    @unique
-  subtotal      Decimal   @db.Decimal(10, 2)
+  id             Int      @id @default(autoincrement())
+  saleId         Int      @unique
+  clinicId       Int
+  patientId      Int?
+  number         String   @unique
+  subtotal       Decimal  @db.Decimal(10, 2)
   discountAmount Decimal  @db.Decimal(10, 2)
-  total         Decimal   @db.Decimal(10, 2)
-  bioo3Share    Decimal   @db.Decimal(10, 2)
-  clinicShare   Decimal   @db.Decimal(10, 2)
-  issuedAt      DateTime  @default(now())
-  createdAt     DateTime  @default(now())
-  sale          Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  clinic        Clinic    @relation(fields: [clinicId], references: [id], onDelete: Restrict)
-  patient       Patient?  @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  total          Decimal  @db.Decimal(10, 2)
+  bioo3Share     Decimal  @db.Decimal(10, 2)
+  clinicShare    Decimal  @db.Decimal(10, 2)
+  issuedAt       DateTime @default(now())
+  createdAt      DateTime @default(now())
+  sale           Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  clinic         Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient        Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
 
   @@index([clinicId])
   @@index([patientId])

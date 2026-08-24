@@ -17,6 +17,8 @@ import { inventoryRoutes } from "./routes/inventoryRoutes.js";
 import { cashRoutes } from "./routes/cashRoutes.js";
 import { videoRoutes } from "./routes/videoRoutes.js";
 import { adminRoutes } from "./routes/adminRoutes.js";
+import { webhookRoutes } from "./routes/webhookRoutes.js";
+import { startBackgroundWorker } from "./services/backgroundWorker.js";
 
 dotenv.config();
 
@@ -57,7 +59,12 @@ app.use(cors((req, callback) => {
     credentials: true
   });
 }));
-app.use(express.json({ limit: "15mb" }));
+app.use(express.json({
+  limit: "15mb",
+  verify(req, _res, buffer) {
+    req.rawBody = Buffer.from(buffer);
+  }
+}));
 app.use(cookieParser());
 
 app.get("/api/health", (_req, res) => {
@@ -65,6 +72,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/webhooks", webhookRoutes);
 app.use("/api/account", accountRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/dashboard", dashboardRoutes);
@@ -89,10 +97,17 @@ app.get("*", (_req, res) => {
 
 app.use((error, _req, res, _next) => {
   console.error(error);
+  if (error.code === "LIMIT_FILE_SIZE" || error.code === "LIMIT_FILE_COUNT") {
+    return res.status(413).json({ error: "O lote excede o limite de 50 PDFs ou 100 MB." });
+  }
+  if (error.message === "Todos os arquivos devem ser PDFs.") {
+    return res.status(400).json({ error: error.message });
+  }
   res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : "Erro interno do servidor." });
 });
 
 const host = process.env.HOST || "0.0.0.0";
 app.listen(port, host, () => {
   console.log(`BioO3 API listening on http://${host}:${port}`);
+  startBackgroundWorker().catch((error) => console.error("Background worker failed to start:", error));
 });

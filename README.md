@@ -95,12 +95,13 @@ The server reads environment variables from `server/.env`. Never commit that fil
 | `MUX_SIGNING_KEY` | No | Mux signed-playback key ID |
 | `MUX_PRIVATE_KEY` | No | Mux private signing key; keep it secret |
 | `FISCAL_PROVIDER` | No | Fiscal provider identifier, when configured |
-| `SMTP_HOST` | No | SMTP server for optional email notifications |
-| `SMTP_PORT` | No | SMTP port; defaults to `587` |
-| `SMTP_SECURE` | No | Set to `true` when SMTP requires a secure connection |
-| `SMTP_USER` / `SMTP_PASSWORD` | No | SMTP credentials |
-| `SMTP_FROM` | No | Sender address |
-| `ADMIN_NOTIFICATION_EMAIL` | No | Optional registration-notification recipient |
+| `R2_ACCOUNT_ID` / `R2_ENDPOINT` | Yes in production | Cloudflare R2 account endpoint for private laboratory documents |
+| `R2_BUCKET` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Yes in production | Private R2 bucket and credentials |
+| `META_APP_ID` / `META_APP_SECRET` | For WhatsApp | Meta application used by Embedded Signup and webhook verification |
+| `META_EMBEDDED_SIGNUP_CONFIG_ID` | For WhatsApp | Coexistence Embedded Signup configuration |
+| `META_WEBHOOK_VERIFY_TOKEN` | For WhatsApp | Secret used for the Meta webhook challenge |
+| `WHATSAPP_TOKEN_ENCRYPTION_KEY` | For WhatsApp | At least 32 random characters used to encrypt the connected access token |
+| `WHATSAPP_REPORT_TEMPLATE` | No | Approved utility template; defaults to `bioo3_relatorio_exames_v1` |
 
 The client optionally accepts `VITE_API_URL` in `client/.env`; it defaults to `/api`.
 

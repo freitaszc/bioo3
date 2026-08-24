@@ -2988,3 +2988,105 @@ select:focus {
   display: grid;
   gap: 6px;
 }
+
+.whatsapp-connection-panel,
+.batch-results-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.whatsapp-connection-actions,
+.batch-toolbar,
+.batch-summary,
+.batch-upload-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.whatsapp-connection-actions strong {
+  margin-right: auto;
+}
+
+.batch-upload {
+  display: grid;
+  gap: 18px;
+}
+
+.batch-upload-heading {
+  justify-content: space-between;
+}
+
+.batch-upload-heading h2,
+.batch-upload-heading p {
+  margin: 0;
+}
+
+.batch-upload-heading p {
+  margin-top: 5px;
+  color: #647888;
+}
+
+.batch-summary {
+  padding: 12px;
+  border: 1px solid #d8edf7;
+  border-radius: 10px;
+  background: #f8fcfe;
+}
+
+.batch-analysis-table td {
+  vertical-align: top;
+}
+
+.batch-analysis-table td small {
+  display: block;
+  margin-top: 4px;
+}
+
+.result-status {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.result-status.low,
+.result-status.high {
+  color: #9f1239;
+  background: #ffe4e6;
+}
+
+.result-status.normal {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.result-status.missing {
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.muted-row {
+  opacity: 0.55;
+}
+
+.batch-analysis-modal {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.batch-analysis-modal pre {
+  max-height: 240px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f0f9ff;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 800px) {
+  .batch-analysis-table {
+    min-width: 980px;
+  }
+}

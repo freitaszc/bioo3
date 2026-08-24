@@ -9,10 +9,11 @@ function scopedPath(path) {
 }
 
 async function request(path, options = {}) {
+  const isFormData = options.body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${scopedPath(path)}`, {
     credentials: "include",
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(options.headers || {})
     },
     ...options
@@ -27,6 +28,12 @@ async function request(path, options = {}) {
     throw new Error(data.error || "Falha na requisição.");
   }
   return data;
+}
+
+export function apiAssetUrl(path) {
+  if (!path || /^https?:\/\//i.test(path)) return path || "";
+  if (path.startsWith("/api/")) return `${API_BASE_URL.replace(/\/api\/?$/, "")}${path}`;
+  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 export const api = {
@@ -171,6 +178,21 @@ export const api = {
     method: "POST",
     body: JSON.stringify(payload)
   }),
+  labBatches: () => request("/lab/batches"),
+  labBatch: (id) => request(`/lab/batches/${id}`),
+  createLabBatch: (files, doctorId) => {
+    const body = new FormData();
+    body.set("doctorId", doctorId);
+    for (const file of files) body.append("files", file);
+    return request("/lab/batches", { method: "POST", body });
+  },
+  updateLabBatchAnalysis: (batchId, analysisId, payload) => request(`/lab/batches/${batchId}/analyses/${analysisId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  }),
+  confirmLabBatch: (id) => request(`/lab/batches/${id}/confirm`, { method: "POST" }),
+  sendLabBatch: (id) => request(`/lab/batches/${id}/send`, { method: "POST" }),
+  sendLabAnalysis: (id) => request(`/lab/analyses/${id}/send`, { method: "POST" }),
   submitUploadLab: () => request("/lab/upload", { method: "POST" }),
   updateProfile: (payload) => request("/account/profile", {
     method: "PUT",
@@ -181,10 +203,14 @@ export const api = {
     body: JSON.stringify(payload)
   }),
   clinics: (status = "") => request(`/admin/clinics${status ? `?status=${status}` : ""}`),
-  approveClinic: (id) => request(`/admin/clinics/${id}/approve`, { method: "PATCH" }),
-  rejectClinic: (id, reason) => request(`/admin/clinics/${id}/reject`, { method: "PATCH", body: JSON.stringify({ reason }) }),
+  createClinic: (payload) => request("/admin/clinics", { method: "POST", body: JSON.stringify(payload) }),
+  updateClinic: (id, payload) => request(`/admin/clinics/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   setClinicStatus: (id, status) => request(`/admin/clinics/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
-  setClinicEmail: (id, email) => request(`/admin/clinics/${id}/email`, { method: "PATCH", body: JSON.stringify({ email }) }),
+  deleteClinic: (id) => request(`/admin/clinics/${id}`, { method: "DELETE" }),
+  whatsappConnection: () => request("/admin/whatsapp"),
+  connectWhatsapp: (payload) => request("/admin/whatsapp/connect", { method: "POST", body: JSON.stringify(payload) }),
+  testWhatsapp: () => request("/admin/whatsapp/test", { method: "POST" }),
+  disconnectWhatsapp: () => request("/admin/whatsapp", { method: "DELETE" }),
   planTemplates: () => request("/plan-templates"),
   planCatalog: () => request("/plan-templates/catalog"),
   createPlanTemplate: (payload) => request("/plan-templates", {

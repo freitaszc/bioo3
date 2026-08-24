@@ -1,6 +1,6 @@
-import bcrypt from "bcrypt";
 import { Router } from "express";
 import { prisma } from "../prisma.js";
+import bcrypt from "bcrypt";
 import { clearSessionCookie, publicUser, setSessionCookie, signSession } from "../auth.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 
@@ -25,15 +25,8 @@ authRoutes.post("/login", async (req, res, next) => {
       return res.status(401).json({ error: "Credenciais inválidas." });
     }
 
-    if (user.role === "CLINIC") {
-      const messages = {
-        PENDING: "Seu cadastro está aguardando aprovação.",
-        REJECTED: `Seu cadastro foi rejeitado.${user.clinic?.rejectionReason ? ` Motivo: ${user.clinic.rejectionReason}` : ""}`,
-        SUSPENDED: "O acesso desta clínica está suspenso."
-      };
-      if (user.clinic?.status !== "ACTIVE") {
-        return res.status(403).json({ error: messages[user.clinic?.status] || "Acesso da clínica indisponível." });
-      }
+    if (user.role !== "ADMIN") {
+      return res.status(403).json({ error: "O acesso ao sistema é exclusivo do administrador." });
     }
 
     const token = signSession(user);
@@ -44,38 +37,8 @@ authRoutes.post("/login", async (req, res, next) => {
   }
 });
 
-authRoutes.post("/register", async (req, res, next) => {
-  try {
-    const clinicName = String(req.body?.clinicName || "").trim();
-    const email = String(req.body?.email || "").trim().toLowerCase();
-    const password = String(req.body?.password || "");
-    if (!clinicName || !/^\S+@\S+\.\S+$/.test(email) || password.length < 8) {
-      return res.status(400).json({ error: "Informe a clínica, um e-mail válido e uma senha de pelo menos 8 caracteres." });
-    }
-
-    const existing = await prisma.user.findUnique({ where: { email }, include: { clinic: true } });
-    if (existing && (existing.role === "ADMIN" || existing.clinic?.status !== "REJECTED")) {
-      return res.status(409).json({ error: "Este e-mail já possui um cadastro." });
-    }
-    const passwordHash = await bcrypt.hash(password, 12);
-    if (existing) {
-      await prisma.$transaction([
-        prisma.clinic.update({ where: { id: existing.clinicId }, data: { name: clinicName, status: "PENDING", rejectionReason: "" } }),
-        prisma.user.update({ where: { id: existing.id }, data: { passwordHash } })
-      ]);
-    } else {
-      await prisma.clinic.create({
-        data: {
-          name: clinicName,
-          user: { create: { username: email, email, passwordHash, role: "CLINIC", firstName: clinicName } }
-        }
-      });
-    }
-    return res.status(201).json({ message: "Cadastro enviado para aprovação." });
-  } catch (error) {
-    if (error.code === "P2002") return res.status(409).json({ error: "Este e-mail já possui um cadastro." });
-    next(error);
-  }
+authRoutes.post("/register", (_req, res) => {
+  return res.status(410).json({ error: "O cadastro público de clínicas foi desativado." });
 });
 
 authRoutes.post("/logout", (_req, res) => {

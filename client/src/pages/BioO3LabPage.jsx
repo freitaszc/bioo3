@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { api } from "../api";
+import { api, apiAssetUrl } from "../api";
 import { useAuth } from "../AuthContext";
 import { TableSkeleton } from "../components/Skeleton";
 import ActionButton from "../components/ActionButton";
@@ -36,6 +36,13 @@ function escapeHtml(value = "") {
 const emptyDoctor = { id: null, name: "", phone: "", councilType: "", councilNumber: "" };
 const digitsOnly = (value, maxLength) => String(value || "").replace(/\D/g, "").slice(0, maxLength);
 const uppercase = (value) => String(value || "").toLocaleUpperCase("pt-BR");
+const batchStatusLabels = { QUEUED: "Na fila", PROCESSING: "Processando", REVIEW: "Revisão", CONFIRMED: "Confirmado", FAILED: "Falhou" };
+const resultStatusLabels = { LOW: "Baixo", NORMAL: "Normal", HIGH: "Alto", MISSING: "Não encontrado" };
+const deliveryStatusLabels = { QUEUED: "Na fila", SENDING: "Enviando", SENT: "Enviado", DELIVERED: "Entregue", READ: "Lido", FAILED: "Falhou" };
+
+function batchResult(analysis, testName) {
+  return (analysis?.results || []).find((result) => result.testName === testName) || { testName, value: null, status: "MISSING" };
+}
 
 export default function BioO3LabPage() {
   const { user } = useAuth();
@@ -60,6 +67,11 @@ export default function BioO3LabPage() {
   const [doctorSubmitting, setDoctorSubmitting] = useState(false);
   const [doctorError, setDoctorError] = useState("");
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [batchFiles, setBatchFiles] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [activeBatchId, setActiveBatchId] = useState("");
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchAnalysis, setBatchAnalysis] = useState(null);
   const [references, setReferences] = useState([]);
   const [referenceSearch, setReferenceSearch] = useState("");
   const [referenceModal, setReferenceModal] = useState(false);
@@ -96,6 +108,21 @@ export default function BioO3LabPage() {
       })
       .catch((err) => setError(err.message));
   }, [linkedPatientId]);
+
+  async function refreshBatches() {
+    const data = await api.labBatches();
+    const next = data.batches || [];
+    setBatches(next);
+    setActiveBatchId((current) => current || next[0]?.id || "");
+    return next;
+  }
+
+  useEffect(() => {
+    if (mode !== "batch") return undefined;
+    refreshBatches().catch((err) => setError(err.message));
+    const timer = window.setInterval(() => refreshBatches().catch(() => {}), 3000);
+    return () => window.clearInterval(timer);
+  }, [mode]);
 
   async function saveDoctor(event) {
     event.preventDefault();
@@ -209,6 +236,71 @@ export default function BioO3LabPage() {
     } finally {
       setUploading(false);
     }
+  }
+
+  async function submitBatch(event) {
+    event.preventDefault();
+    setError(""); setMessage("");
+    if (!localStorage.getItem("bioo3_clinic_scope")) { setError("Selecione uma clínica no topo da página antes de criar o lote."); return; }
+    if (!selectedDoctorId) { setError("Selecione o prescritor responsável pelo lote."); return; }
+    if (!batchFiles.length) { setError("Selecione pelo menos um PDF."); return; }
+    setBatchLoading(true);
+    try {
+      const data = await api.createLabBatch(batchFiles, selectedDoctorId);
+      setBatchFiles([]);
+      setActiveBatchId(data.batch.id);
+      await refreshBatches();
+      setMessage("Lote recebido e enviado para processamento.");
+    } catch (err) { setError(err.message); }
+    finally { setBatchLoading(false); }
+  }
+
+  async function saveBatchAnalysis() {
+    if (!batchAnalysis) return;
+    setBatchLoading(true); setError("");
+    try {
+      await api.updateLabBatchAnalysis(batchAnalysis.batchId, batchAnalysis.id, {
+        patient: {
+          name: batchAnalysis.patientName,
+          age: batchAnalysis.patientAge,
+          cpf: batchAnalysis.patientCpf,
+          gender: batchAnalysis.patientGender
+        },
+        values: (batchAnalysis.results || []).map((result) => ({ testName: result.testName, value: result.value }))
+      });
+      await refreshBatches();
+      setBatchAnalysis(null);
+      setMessage("Dados da análise atualizados.");
+    } catch (err) { setError(err.message); }
+    finally { setBatchLoading(false); }
+  }
+
+  async function excludeBatchAnalysis(analysis) {
+    if (!window.confirm(`Excluir ${analysis.patientName || "este paciente"} do lote?`)) return;
+    try { await api.updateLabBatchAnalysis(analysis.batchId, analysis.id, { excluded: true }); await refreshBatches(); }
+    catch (err) { setError(err.message); }
+  }
+
+  async function confirmBatch(batch) {
+    if (!window.confirm("Confirmar o lote e cadastrar todos os pacientes revisados?")) return;
+    setBatchLoading(true); setError("");
+    try { await api.confirmLabBatch(batch.id); await refreshBatches(); setMessage("Lote confirmado. Os relatórios estão sendo gerados."); }
+    catch (err) { setError(err.message); }
+    finally { setBatchLoading(false); }
+  }
+
+  async function sendBatch(batch) {
+    setBatchLoading(true); setError("");
+    try { const data = await api.sendLabBatch(batch.id); await refreshBatches(); setMessage(`${data.queued} relatório(s) colocado(s) na fila do WhatsApp.`); }
+    catch (err) { setError(err.message); }
+    finally { setBatchLoading(false); }
+  }
+
+  async function sendBatchAnalysis(analysis) {
+    setBatchLoading(true); setError("");
+    try { await api.sendLabAnalysis(analysis.id); await refreshBatches(); setMessage("Relatório colocado na fila do WhatsApp."); }
+    catch (err) { setError(err.message); }
+    finally { setBatchLoading(false); }
   }
 
   function updatePreviewValue(testName, value) {
@@ -387,6 +479,9 @@ export default function BioO3LabPage() {
               <button className={mode === "manual" ? "active" : ""} type="button" onClick={() => setMode("manual")}>
                 Inserir manualmente
               </button>
+              {!linkedPatient && <button className={mode === "batch" ? "active" : ""} type="button" onClick={() => setMode("batch")}>
+                Análise múltipla
+              </button>}
             </div>
             <div className="doctor-actions">
               <button className="secondary-button" type="button" onClick={() => openDoctorForm()}>
@@ -424,7 +519,7 @@ export default function BioO3LabPage() {
                 )}
               </div>
             </form>
-          ) : (
+          ) : mode === "manual" ? (
             <form className="form-grid" onSubmit={submitManual}>
               <label><span>Nome do paciente</span><input readOnly={Boolean(linkedPatient)} value={manual.name} onChange={(e) => setManual({ ...manual, name: e.target.value })} required /></label>
               <label><span>Idade</span><input readOnly={Boolean(linkedPatient)} type="number" value={manual.age} onChange={(e) => setManual({ ...manual, age: e.target.value })} required /></label>
@@ -437,6 +532,13 @@ export default function BioO3LabPage() {
                 <textarea value={manual.labResults} onChange={(e) => setManual({ ...manual, labResults: e.target.value })} rows="8" required />
               </label>
               <button className="primary-button fit-button" type="submit">Analisar manualmente</button>
+            </form>
+          ) : (
+            <form className="lab-upload batch-upload" onSubmit={submitBatch}>
+              <div className="batch-upload-heading"><div><h2>Análise múltipla</h2><p>Selecione até 50 PDFs ou um PDF consolidado. O lote usará a clínica escolhida no topo da página.</p></div><span className="status-pill active">B12 + D3</span></div>
+              <label className="review-doctor-select"><span>Prescritor responsável pelo lote</span><select value={selectedDoctorId} onChange={(event) => setSelectedDoctorId(event.target.value)} required><option value="">Selecione um prescritor</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id} disabled={!doctor.councilType || !doctor.councilNumber}>{doctor.name} · {doctor.councilType && doctor.councilNumber ? `${doctor.councilType} ${doctor.councilNumber}` : "CR não cadastrado"}</option>)}</select></label>
+              <label className="drop-zone"><input type="file" accept="application/pdf" multiple onChange={(event) => setBatchFiles([...event.target.files].slice(0, 50))} /><span>{batchFiles.length ? `${batchFiles.length} PDF(s) selecionado(s)` : "Selecione ou arraste os PDFs do lote"}</span></label>
+              <button className="primary-button fit-button" type="submit" disabled={batchLoading}>{batchLoading ? "Enviando..." : "Analisar lote"}</button>
             </form>
           )}
         </section>
@@ -587,7 +689,26 @@ export default function BioO3LabPage() {
             </div>
           </section>
         )}
+
+        {mode === "batch" && (() => {
+          const batch = batches.find((item) => item.id === activeBatchId) || batches[0];
+          return <section className="panel batch-results-panel">
+            <div className="panel-header"><div><h2>Lotes analisados</h2><p>Revise os pacientes antes de confirmar e acompanhe cada envio ao WhatsApp.</p></div>{batches.length > 0 && <select value={batch?.id || ""} onChange={(event) => setActiveBatchId(event.target.value)}>{batches.map((item) => <option key={item.id} value={item.id}>{new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(item.createdAt))} · {batchStatusLabels[item.status] || item.status}</option>)}</select>}</div>
+            {!batch && <div className="empty-state compact-empty">Nenhum lote criado para a clínica selecionada.</div>}
+            {batch && <>
+              <div className="batch-summary"><span className={`status-pill ${batch.status === "FAILED" ? "muted" : "active"}`}>{batchStatusLabels[batch.status] || batch.status}</span><strong>{batch.clinic?.name}</strong><span>{batch.candidateCount || 0} paciente(s)</span><span>{batch.doctor?.name}</span></div>
+              {batch.error && <p className="form-error">{batch.error}</p>}
+              <div className="batch-toolbar">{batch.status === "REVIEW" && <button className="primary-button" type="button" disabled={batchLoading} onClick={() => confirmBatch(batch)}>Confirmar lote</button>}{batch.status === "CONFIRMED" && <button className="primary-button" type="button" disabled={batchLoading || !(batch.analyses || []).some((analysis) => analysis.hasAlteration && analysis.status === "READY")} onClick={() => sendBatch(batch)}>Enviar todos com alteração</button>}</div>
+              <div className="table-wrap"><table className="control-table batch-analysis-table"><thead><tr><th>Paciente</th><th>Vitamina B12</th><th>25-hidroxi D3</th><th>Processamento</th><th>WhatsApp</th><th>Ações</th></tr></thead><tbody>{(batch.analyses || []).map((analysis) => {
+                const b12 = batchResult(analysis, "Vitamina B12"); const d3 = batchResult(analysis, "25-hidroxi D3");
+                return <tr key={analysis.id} className={analysis.status === "EXCLUDED" ? "muted-row" : ""}><td><strong>{analysis.patientName || "Não identificado"}</strong><small>{analysis.matchingStatus === "MATCHED" ? "Paciente existente" : analysis.matchingStatus === "CREATED" ? "Paciente criado" : analysis.matchingStatus === "AMBIGUOUS" ? "Correspondência ambígua" : "Novo paciente"}</small>{analysis.error && <small className="form-error">{analysis.error}</small>}</td><td><span className={`result-status ${b12.status.toLowerCase()}`}>{resultStatusLabels[b12.status]}</span><small>{b12.value ?? "—"} {b12.unit}</small></td><td><span className={`result-status ${d3.status.toLowerCase()}`}>{resultStatusLabels[d3.status]}</span><small>{d3.value ?? "—"} {d3.unit}</small></td><td>{analysis.status === "READY" ? "Relatório pronto" : analysis.status === "REPORT_FAILED" ? "Falha no relatório" : analysis.status === "EXCLUDED" ? "Excluído" : ["CONFIRMED", "REPORTING"].includes(analysis.status) ? "Gerando relatório" : "Em revisão"}</td><td>{deliveryStatusLabels[analysis.whatsappDelivery?.status] || "Não enviado"}{analysis.whatsappDelivery?.lastError && <small className="form-error">{analysis.whatsappDelivery.lastError}</small>}</td><td><div className="row-actions"><button className="secondary-button compact-button" type="button" onClick={() => setBatchAnalysis(structuredClone(analysis))}>Detalhes</button>{batch.status === "REVIEW" && analysis.status !== "EXCLUDED" && <button className="danger-button compact-button" type="button" onClick={() => excludeBatchAnalysis(analysis)}>Excluir</button>}{analysis.hasAlteration && analysis.status === "READY" && !["QUEUED", "SENDING", "SENT", "DELIVERED", "READ"].includes(analysis.whatsappDelivery?.status) && <button className="primary-button compact-button" type="button" onClick={() => sendBatchAnalysis(analysis)}>Enviar</button>}</div></td></tr>;
+              })}{!batch.analyses?.length && <tr><td colSpan="6"><div className="empty-state compact-empty">Aguardando processamento dos PDFs.</div></td></tr>}</tbody></table></div>
+            </>}
+          </section>;
+        })()}
       </main>
+
+      {batchAnalysis && <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card batch-analysis-modal"><button className="modal-close" type="button" onClick={() => setBatchAnalysis(null)}>×</button><h2>Detalhes da análise</h2><p className="muted-text">Páginas {batchAnalysis.pageStart}–{batchAnalysis.pageEnd}</p><div className="form-grid"><label className="full-width"><span>Paciente</span><input value={batchAnalysis.patientName} disabled={batches.find((item) => item.id === batchAnalysis.batchId)?.status !== "REVIEW"} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, patientName: event.target.value })} /></label><label><span>Idade</span><input type="number" value={batchAnalysis.patientAge || ""} disabled={batches.find((item) => item.id === batchAnalysis.batchId)?.status !== "REVIEW"} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, patientAge: event.target.value })} /></label><label><span>CPF</span><input value={batchAnalysis.patientCpf || ""} disabled={batches.find((item) => item.id === batchAnalysis.batchId)?.status !== "REVIEW"} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, patientCpf: digitsOnly(event.target.value) })} /></label>{["Vitamina B12", "25-hidroxi D3"].map((testName) => { const result = batchResult(batchAnalysis, testName); return <label key={testName}><span>{testName}</span><input type="number" step="any" value={result.value ?? ""} disabled={batches.find((item) => item.id === batchAnalysis.batchId)?.status !== "REVIEW"} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, results: batchAnalysis.results.map((item) => item.testName === testName ? { ...item, value: event.target.value } : item) })} /></label>; })}</div><h3>Prescrição</h3><pre>{batchAnalysis.prescriptionText || "Nenhuma prescrição gerada."}</pre><div className="modal-actions">{batchAnalysis.originalUrl && <><a className="secondary-button" href={apiAssetUrl(batchAnalysis.originalUrl)} target="_blank" rel="noreferrer">Ver PDF original</a><a className="secondary-button" href={`${apiAssetUrl(batchAnalysis.originalUrl)}?disposition=attachment`}>Baixar original</a></>}{batchAnalysis.reportUrl && <a className="secondary-button" href={apiAssetUrl(batchAnalysis.reportUrl)} target="_blank" rel="noreferrer">Ver relatório</a>}{batches.find((item) => item.id === batchAnalysis.batchId)?.status === "REVIEW" && <button className="primary-button" type="button" disabled={batchLoading} onClick={saveBatchAnalysis}>Salvar revisão</button>}</div></div></div>}
 
       {doctorModal && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">

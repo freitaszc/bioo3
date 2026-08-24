@@ -14,15 +14,18 @@
     "seed": "prisma db seed"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1116.0",
+    "@aws-sdk/s3-request-presigner": "^3.1116.0",
     "@prisma/client": "^5.22.0",
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
-    "express": "^4.21.2",
+    "express": "^4.22.1",
     "jsonwebtoken": "^9.0.2",
-    "nodemailer": "^6.10.1",
-    "pdf-parse": "^2.4.5"
+    "multer": "^2.2.0",
+    "pdf-parse": "^2.4.5",
+    "pdfkit": "^0.20.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.7",

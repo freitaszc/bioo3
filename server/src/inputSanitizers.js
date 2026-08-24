@@ -13,3 +13,13 @@ export function councilType(value) {
 export function validPhone(value) {
   return /^\d{10,11}$/.test(value);
 }
+
+export function normalizeWhatsAppPhone(value) {
+  const digits = digitsOnly(value, 15);
+  if (/^\d{10,11}$/.test(digits)) return `55${digits}`;
+  return digits;
+}
+
+export function validWhatsAppPhone(value) {
+  return /^\d{12,15}$/.test(normalizeWhatsAppPhone(value));
+}

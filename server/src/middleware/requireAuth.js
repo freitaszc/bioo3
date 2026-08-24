@@ -20,9 +20,9 @@ export async function requireAuth(req, res, next) {
       return res.status(401).json({ error: "User not found." });
     }
 
-    if (user.role === "CLINIC" && user.clinic?.status !== "ACTIVE") {
+    if (user.role !== "ADMIN") {
       clearSessionCookie(res);
-      return res.status(403).json({ error: "Acesso da clínica não está ativo." });
+      return res.status(403).json({ error: "O acesso ao sistema é exclusivo do administrador." });
     }
     req.user = user;
     req.publicUser = publicUser(user);

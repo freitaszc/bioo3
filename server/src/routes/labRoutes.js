@@ -12,6 +12,7 @@ import {
   compareExtractedValuesToReferences,
   extractPdfBufferToJson
 } from "../services/pdfAnalysis.js";
+import { batchLabRoutes } from "./batchLabRoutes.js";
 
 export const labRoutes = Router();
 const pendingPdfAnalyses = new Map();
@@ -20,6 +21,7 @@ const __dirname = path.dirname(__filename);
 const referencesPath = path.resolve(__dirname, "../data/references.json");
 
 labRoutes.use(requireAuth);
+labRoutes.use(batchLabRoutes);
 
 async function readReferences() {
   const references = JSON.parse(await readFile(referencesPath, "utf8"));
