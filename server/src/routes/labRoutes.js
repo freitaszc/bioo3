@@ -156,7 +156,7 @@ async function findExistingPatientForAnalysis({ patientId, clinicId, patient = {
 
 labRoutes.get("/doctors", async (req, res, next) => {
   try {
-    const doctors = await prisma.doctor.findMany({ where: clinicWhere(req), include: { clinic: true }, orderBy: { name: "asc" } });
+    const doctors = await prisma.doctor.findMany({ where: { deletedAt: null, ...clinicWhere(req) }, include: { clinic: true }, orderBy: { name: "asc" } });
     return res.json({ doctors });
   } catch (error) {
     next(error);
@@ -205,7 +205,7 @@ labRoutes.post("/doctors", async (req, res, next) => {
 
     const doctor = await prisma.doctor.upsert({
       where: { clinicId_name: { clinicId, name } },
-      update: { phone, councilType, councilNumber },
+      update: { phone, councilType, councilNumber, deletedAt: null },
       create: { name, phone, councilType, councilNumber, clinicId }
     });
 
@@ -226,7 +226,7 @@ labRoutes.put("/doctors/:id", async (req, res, next) => {
     if (!Number.isInteger(id) || name.length < 2 || !validPhone(phone) || councilType.length < 2 || councilNumber.length < 3) {
       return res.status(400).json({ error: "Preencha corretamente todos os campos do prescritor." });
     }
-    const doctor = await prisma.doctor.update({ where: { id, ...clinicWhere(req) }, data: { name, phone, councilType, councilNumber } });
+    const doctor = await prisma.doctor.update({ where: { id, deletedAt: null, ...clinicWhere(req) }, data: { name, phone, councilType, councilNumber } });
     return res.json({ doctor });
   } catch (error) { if (error.code === "P2025") return res.status(404).json({ error: "Prescritor não encontrado." }); if (error.code === "P2002") return res.status(409).json({ error: "Já existe um prescritor com este nome." }); next(error); }
 });
@@ -235,8 +235,15 @@ labRoutes.delete("/doctors/:id", async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: "Prescritor inválido." });
-    const result = await prisma.doctor.deleteMany({ where: { id, ...clinicWhere(req) } });
-    if (!result.count) return res.status(404).json({ error: "Prescritor não encontrado." });
+    const deleted = await prisma.$transaction(async (tx) => {
+      const result = await tx.doctor.updateMany({
+        where: { id, deletedAt: null, ...clinicWhere(req) },
+        data: { deletedAt: new Date() }
+      });
+      if (result.count) await tx.patient.updateMany({ where: { doctorId: id }, data: { doctorId: null } });
+      return result.count;
+    });
+    if (!deleted) return res.status(404).json({ error: "Prescritor não encontrado." });
     return res.status(204).send();
   } catch (error) { next(error); }
 });
@@ -342,7 +349,7 @@ labRoutes.post("/upload/confirm", async (req, res, next) => {
     if (!pending || pending.userId !== req.user.id || pending.clinicId !== clinicId) {
       return res.status(404).json({ error: "Prévia da análise não encontrada. Envie o PDF novamente." });
     }
-    const doctor = await prisma.doctor.findFirst({ where: { id: doctorId, clinicId } });
+    const doctor = await prisma.doctor.findFirst({ where: { id: doctorId, clinicId, deletedAt: null } });
     if (!doctor || !doctor.councilType || !doctor.councilNumber) return res.status(400).json({ error: "Selecione um prescritor com CR cadastrado." });
 
     const reviewedExtraction = applyReviewedValues(

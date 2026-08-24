@@ -49,7 +49,7 @@ async function ensureDoctor(doctorId, clinicId) {
   if (!Number.isInteger(doctorId)) {
     throw new Error("Médico inválido.");
   }
-  const doctor = await prisma.doctor.findFirst({ where: { id: doctorId, clinicId } });
+  const doctor = await prisma.doctor.findFirst({ where: { id: doctorId, clinicId, deletedAt: null } });
   if (!doctor) {
     throw new Error("Médico não encontrado.");
   }

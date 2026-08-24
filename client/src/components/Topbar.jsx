@@ -26,7 +26,9 @@ export default function Topbar() {
   }, [user?.role]);
 
   function changeScope(event) {
-    const value = event.target.value; setScope(value); api.setClinicScope(value); window.location.reload();
+    const value = event.target.value;
+    setScope(value);
+    api.setClinicScope(value);
   }
 
   async function handleLogout() {

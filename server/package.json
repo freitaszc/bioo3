@@ -14,6 +14,7 @@
     "seed": "prisma db seed"
   },
   "dependencies": {
+    "@napi-rs/canvas": "0.1.80",
     "@aws-sdk/client-s3": "^3.1116.0",
     "@aws-sdk/s3-request-presigner": "^3.1116.0",
     "@prisma/client": "^5.22.0",

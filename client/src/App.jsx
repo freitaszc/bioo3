@@ -1,4 +1,5 @@
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { RouteSkeleton } from "./components/Skeleton";
 import AccountPage from "./pages/AccountPage";
@@ -18,6 +19,14 @@ import Topbar from "./components/Topbar";
 
 function ProtectedLayout() {
   const { loading, user } = useAuth();
+  const location = useLocation();
+  const [scopeRevision, setScopeRevision] = useState(0);
+
+  useEffect(() => {
+    const refreshScope = () => setScopeRevision((current) => current + 1);
+    window.addEventListener("bioo3:clinic-scope-change", refreshScope);
+    return () => window.removeEventListener("bioo3:clinic-scope-change", refreshScope);
+  }, []);
 
   if (loading) {
     return <RouteSkeleton />;
@@ -27,7 +36,7 @@ function ProtectedLayout() {
     return <Navigate to="/login" replace />;
   }
 
-  return <div className="app-shell"><Topbar /><Outlet /></div>;
+  return <div className="app-shell"><Topbar /><div className="route-transition" key={`${location.pathname}:${location.search}:${scopeRevision}`}><Outlet /></div></div>;
 }
 
 export default function App() {

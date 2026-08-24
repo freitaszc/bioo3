@@ -90,6 +90,7 @@ model Doctor {
   councilNumber   String          @default("")
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
   patients        Patient[]
   analysisBatches AnalysisBatch[]
   clinicId        Int
@@ -97,6 +98,7 @@ model Doctor {
 
   @@unique([clinicId, name])
   @@index([clinicId])
+  @@index([deletedAt])
 }
 
 model ReferenceOverride {

@@ -34,6 +34,28 @@ body {
   color: var(--text);
 }
 
+.route-transition {
+  animation: route-enter 180ms ease-out both;
+}
+
+@keyframes route-enter {
+  from {
+    opacity: 0.45;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-transition {
+    animation: none;
+  }
+}
+
 a {
   color: inherit;
 }
@@ -3035,13 +3057,36 @@ select:focus {
   background: #f8fcfe;
 }
 
+.batch-toolbar {
+  justify-content: center;
+}
+
+.batch-footer-actions {
+  padding-top: 4px;
+}
+
+.batch-analysis-table th,
 .batch-analysis-table td {
-  vertical-align: top;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .batch-analysis-table td small {
   display: block;
   margin-top: 4px;
+}
+
+.batch-analysis-table .batch-row-actions {
+  justify-content: center;
+  flex-wrap: nowrap;
+}
+
+.batch-analysis-table th:first-child {
+  width: 23%;
+}
+
+.batch-analysis-table th:last-child {
+  width: 28%;
 }
 
 .result-status {
@@ -3076,13 +3121,21 @@ select:focus {
   width: min(760px, calc(100vw - 32px));
 }
 
-.batch-analysis-modal pre {
-  max-height: 240px;
-  overflow: auto;
-  padding: 12px;
-  border-radius: 8px;
+.batch-analysis-backdrop {
+  width: 100vw;
+  height: 100dvh;
+  align-items: center;
+  justify-items: center;
+}
+
+.batch-analysis-modal textarea:disabled {
   background: #f0f9ff;
-  white-space: pre-wrap;
+  color: var(--text);
+  opacity: 1;
+}
+
+.batch-analysis-actions {
+  justify-content: center;
 }
 
 @media (max-width: 800px) {

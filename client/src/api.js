@@ -41,6 +41,7 @@ export const api = {
     clinicScope = clinicId ? String(clinicId) : "";
     if (clinicScope) localStorage.setItem("bioo3_clinic_scope", clinicScope);
     else localStorage.removeItem("bioo3_clinic_scope");
+    window.dispatchEvent(new CustomEvent("bioo3:clinic-scope-change", { detail: { clinicId: clinicScope } }));
   },
   register: (payload) => request("/auth/register", { method: "POST", body: JSON.stringify(payload) }),
   login: (payload) => request("/auth/login", {

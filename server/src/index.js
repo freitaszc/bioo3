@@ -19,6 +19,7 @@ import { videoRoutes } from "./routes/videoRoutes.js";
 import { adminRoutes } from "./routes/adminRoutes.js";
 import { webhookRoutes } from "./routes/webhookRoutes.js";
 import { startBackgroundWorker } from "./services/backgroundWorker.js";
+import { knownDatabaseError } from "./databaseErrors.js";
 
 dotenv.config();
 
@@ -103,6 +104,8 @@ app.use((error, _req, res, _next) => {
   if (error.message === "Todos os arquivos devem ser PDFs.") {
     return res.status(400).json({ error: error.message });
   }
+  const databaseError = knownDatabaseError(error);
+  if (databaseError) return res.status(databaseError.status).json({ error: databaseError.message });
   res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : "Erro interno do servidor." });
 });
 

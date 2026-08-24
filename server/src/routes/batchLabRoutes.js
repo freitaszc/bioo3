@@ -7,12 +7,12 @@ import { normalizeWhatsAppPhone, validWhatsAppPhone } from "../inputSanitizers.j
 import {
   BATCH_TEST_NAMES,
   classifyValue,
+  deriveAnalysisTexts,
   expiresAtFromNow,
   generateReportForAnalysis,
   generateReportsForBatch,
   patientIdentity,
-  readBatchReferences,
-  recalculateAnalysis
+  readBatchReferences
 } from "../services/batchAnalysis.js";
 import { createStorageKey, deleteObject, getObjectBuffer, putObject, signedDownloadUrl } from "../services/objectStorage.js";
 import { runBackgroundCycle } from "../services/backgroundWorker.js";
@@ -88,7 +88,7 @@ batchLabRoutes.post("/batches", upload.array("files", 50), async (req, res, next
     const clinicId = selectedClinicId(req, { required: true });
     await requireActiveClinic(prisma, clinicId);
     const doctorId = Number(req.body?.doctorId);
-    const doctor = await prisma.doctor.findFirst({ where: { id: doctorId, clinicId } });
+    const doctor = await prisma.doctor.findFirst({ where: { id: doctorId, clinicId, deletedAt: null } });
     if (!doctor || !doctor.councilType || !doctor.councilNumber) {
       return res.status(400).json({ error: "Selecione um prescritor da clínica com conselho cadastrado." });
     }
@@ -189,40 +189,64 @@ batchLabRoutes.patch("/batches/:batchId/analyses/:analysisId", async (req, res, 
     const matching = await resolveMatching(analysis.batch.clinicId, patient);
     const supplied = new Map((req.body?.values || []).map((result) => [String(result.testName), result.value]));
     const references = await readBatchReferences();
+    const updatedResults = [];
     for (const result of analysis.results) {
-      if (!supplied.has(result.testName)) continue;
-      const raw = supplied.get(result.testName);
-      const number = raw === "" || raw === null ? null : Number(raw);
-      if (number !== null && !Number.isFinite(number)) return res.status(400).json({ error: `Valor inválido para ${result.testName}.` });
-      await prisma.labResult.update({
-        where: { id: result.id },
-        data: {
-          value: number,
-          rawValue: number === null ? "" : String(number),
-          status: classifyValue(number, references[result.testName].ideal),
-          edited: true
-        }
+      const wasSupplied = supplied.has(result.testName);
+      const raw = wasSupplied ? supplied.get(result.testName) : result.value;
+      const value = raw === "" || raw === null ? null : Number(raw);
+      if (value !== null && !Number.isFinite(value)) return res.status(400).json({ error: `Valor inválido para ${result.testName}.` });
+      updatedResults.push({
+        ...result,
+        value,
+        rawValue: wasSupplied ? (value === null ? "" : String(value)) : result.rawValue,
+        ideal: String(references[result.testName].ideal),
+        status: classifyValue(value, references[result.testName].ideal),
+        edited: wasSupplied ? true : result.edited
       });
     }
-    const refreshedResults = await prisma.labResult.findMany({ where: { analysisId: analysis.id } });
     const error = !patient.patientName
       ? "Nome do paciente não informado."
       : !patient.patientAge
         ? "Idade do paciente não informada."
         : matching.matchingStatus === "AMBIGUOUS"
           ? "Mais de um paciente cadastrado corresponde aos dados informados."
-          : refreshedResults.every((result) => result.value === null)
+          : updatedResults.every((result) => result.value === null)
             ? "Informe ao menos um valor de B12 ou D3."
             : "";
-    await prisma.labAnalysis.update({
+    const texts = deriveAnalysisTexts({
+      name: patient.patientName,
+      age: patient.patientAge,
+      cpf: patient.patientCpf,
+      gender: patient.patientGender
+    }, updatedResults, references);
+    const prescriptionText = Object.prototype.hasOwnProperty.call(req.body || {}, "prescriptionText")
+      ? String(req.body.prescriptionText || "").trim().slice(0, 20000)
+      : texts.prescriptionText;
+    const operations = updatedResults.map((result) => prisma.labResult.update({
+      where: { id: result.id },
+      data: {
+        value: result.value,
+        rawValue: result.rawValue,
+        ideal: result.ideal,
+        status: result.status,
+        edited: result.edited
+      }
+    }));
+    operations.push(prisma.labAnalysis.update({
       where: { id: analysis.id },
-      data: { ...patient, ...matching, status: "DRAFT", error }
-    });
-    await recalculateAnalysis(analysis.id);
-    const updated = await prisma.labAnalysis.findUnique({
-      where: { id: analysis.id },
+      data: {
+        ...patient,
+        ...matching,
+        status: "DRAFT",
+        error,
+        diagnosisText: texts.diagnosisText,
+        prescriptionText,
+        hasAlteration: texts.hasAlteration
+      },
       include: { results: { orderBy: { testName: "asc" } }, documents: true, whatsappDelivery: true }
-    });
+    }));
+    const transactionResults = await prisma.$transaction(operations);
+    const updated = transactionResults.at(-1);
     return res.json({ analysis: updated });
   } catch (error) {
     next(error);
@@ -251,46 +275,68 @@ batchLabRoutes.post("/batches/:id/confirm", async (req, res, next) => {
     }
 
     await prisma.$transaction(async (tx) => {
-      const existingPatients = await tx.patient.findMany({ where: { clinicId: batch.clinicId } });
+      let clinicPatients = await tx.patient.findMany({ where: { clinicId: batch.clinicId } });
+      const resolutions = [];
+      const patientsToCreate = [];
+
       for (const analysis of analyses) {
         const identity = patientIdentity({ name: analysis.patientName, cpf: analysis.patientCpf });
-        const matches = existingPatients.filter((patient) => patientIdentity(patient) === identity);
+        const matches = clinicPatients.filter((patient) => patientIdentity(patient) === identity);
         if (matches.length > 1) throw Object.assign(new Error(`Há mais de um cadastro para ${analysis.patientName}.`), { statusCode: 400 });
-        let patient = matches[0];
-        if (!patient) {
-          patient = await tx.patient.create({
-            data: {
-              name: analysis.patientName,
-              age: analysis.patientAge,
-              cpf: analysis.patientCpf,
-              gender: analysis.patientGender,
-              phone: "",
-              prescription: analysis.prescriptionText,
-              clinicId: batch.clinicId,
-              doctorId: batch.doctorId
-            }
+        resolutions.push({ analysis, identity, wasExisting: Boolean(matches[0]) });
+        if (!matches[0]) {
+          patientsToCreate.push({
+            name: analysis.patientName,
+            age: analysis.patientAge,
+            cpf: analysis.patientCpf,
+            gender: analysis.patientGender,
+            phone: "",
+            prescription: analysis.prescriptionText,
+            clinicId: batch.clinicId,
+            doctorId: batch.doctorId
           });
-          existingPatients.push(patient);
-        } else if (analysis.prescriptionText) {
-          patient = await tx.patient.update({ where: { id: patient.id }, data: { prescription: analysis.prescriptionText } });
         }
+      }
 
-        await tx.consultation.create({
-          data: {
+      if (patientsToCreate.length) {
+        await tx.patient.createMany({ data: patientsToCreate });
+        clinicPatients = await tx.patient.findMany({ where: { clinicId: batch.clinicId } });
+      }
+
+      const patientsByIdentity = new Map(clinicPatients.map((patient) => [patientIdentity(patient), patient]));
+      const resolved = resolutions.map((item) => ({ ...item, patient: patientsByIdentity.get(item.identity) }));
+      if (resolved.some((item) => !item.patient)) {
+        throw Object.assign(new Error("Não foi possível associar todos os pacientes do lote."), { statusCode: 409 });
+      }
+
+      await Promise.all(resolved
+        .filter(({ wasExisting, analysis }) => wasExisting && analysis.prescriptionText)
+        .map(({ patient, analysis }) => tx.patient.update({
+          where: { id: patient.id },
+          data: { prescription: analysis.prescriptionText }
+        })));
+
+      await tx.consultation.createMany({
+        data: resolved.map(({ analysis, patient }) => ({
             patientId: patient.id,
             clinicId: batch.clinicId,
             notes: `Diagnóstico:\n${analysis.diagnosisText}\n\nPrescrição:\n${analysis.prescriptionText}`.trim()
-          }
-        });
-        await tx.analysisEvent.create({
-          data: { userId: req.user.id, patientId: patient.id, clinicId: batch.clinicId, source: "pdf_batch" }
-        });
-        await tx.labAnalysis.update({
+        }))
+      });
+      await tx.analysisEvent.createMany({
+        data: resolved.map(({ patient }) => ({
+          userId: req.user.id,
+          patientId: patient.id,
+          clinicId: batch.clinicId,
+          source: "pdf_batch"
+        }))
+      });
+      const confirmedAt = new Date();
+      await Promise.all(resolved.map(({ analysis, patient, wasExisting }) => tx.labAnalysis.update({
           where: { id: analysis.id },
-          data: { patientId: patient.id, matchingStatus: matches.length ? "MATCHED" : "CREATED", status: "CONFIRMED", confirmedAt: new Date(), error: "" }
-        });
-      }
-      await tx.analysisBatch.update({ where: { id: batch.id }, data: { status: "CONFIRMED", confirmedAt: new Date(), error: "" } });
+          data: { patientId: patient.id, matchingStatus: wasExisting ? "MATCHED" : "CREATED", status: "CONFIRMED", confirmedAt, error: "" }
+      })));
+      await tx.analysisBatch.update({ where: { id: batch.id }, data: { status: "CONFIRMED", confirmedAt, error: "" } });
     });
 
     setImmediate(() => generateReportsForBatch(batch.id).catch(console.error));
