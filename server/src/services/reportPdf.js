@@ -125,17 +125,37 @@ function drawResultsTable(doc, results) {
   doc.y = y + 20;
 }
 
-function drawPrescription(doc, prescriptionText) {
+function drawPrescription(doc, prescriptionText, reservedHeight = 0) {
   const text = prescriptionText || "Nenhuma prescrição gerada.";
   const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const contentWidth = width - 24;
-  const textHeight = doc.heightOfString(text, { width: contentWidth, lineGap: 2 });
+  // heightOfString uses the document's current font. The section title leaves
+  // a 15pt bold font active, which greatly overestimates this block unless the
+  // prescription style is selected before measuring it.
+  const bottom = doc.page.height - doc.page.margins.bottom - 24;
+  const availableHeight = bottom - doc.y - reservedHeight - 12;
+  let fontSize = 11;
+  let lineGap = 2;
+  doc.font("Helvetica").fontSize(fontSize);
+  let textHeight = doc.heightOfString(text, { width: contentWidth, lineGap });
+
+  // The standard B12 + D prescription is verbose. Compact it only as much as
+  // needed to preserve the complete text and its signature on page one.
+  while (Math.max(52, textHeight + 24) > availableHeight && fontSize > 8) {
+    fontSize -= 0.5;
+    lineGap = fontSize <= 9 ? 1 : 2;
+    doc.fontSize(fontSize);
+    textHeight = doc.heightOfString(text, { width: contentWidth, lineGap });
+  }
+
   const height = Math.max(52, textHeight + 24);
-  ensureSpace(doc, height + 12);
+  // Keep the prescription and signature together. For the B12/D report this
+  // reserves the signature area while deciding whether the content fits.
+  ensureSpace(doc, height + 12 + reservedHeight);
   const y = doc.y;
   doc.roundedRect(doc.page.margins.left, y, width, height, 7).fillAndStroke("#ffffff", colors.border);
-  doc.fillColor(colors.text).font("Helvetica").fontSize(11)
-    .text(text, doc.page.margins.left + 12, y + 12, { width: contentWidth, lineGap: 2 });
+  doc.fillColor(colors.text)
+    .text(text, doc.page.margins.left + 12, y + 12, { width: contentWidth, lineGap });
   doc.y = y + height;
 }
 
@@ -166,10 +186,11 @@ export async function generateAnalysisReport(analysis) {
     drawResultsTable(doc, abnormalResults);
 
     drawSectionTitle(doc, "Prescrição");
-    drawPrescription(doc, analysis.prescriptionText);
+    const signatureBlockHeight = 110;
+    drawPrescription(doc, analysis.prescriptionText, signatureBlockHeight);
 
     const doctor = analysis.batch?.doctor;
-    ensureSpace(doc, 110);
+    ensureSpace(doc, signatureBlockHeight);
     const signatureY = doc.y + 54;
     doc.strokeColor(colors.text).lineWidth(1).moveTo(148, signatureY).lineTo(448, signatureY).stroke();
     doc.fillColor(colors.text).font("Helvetica-Bold").fontSize(11)
@@ -178,7 +199,7 @@ export async function generateAnalysisReport(analysis) {
       .text([doctor?.councilType, doctor?.councilNumber].filter(Boolean).join(" ") || "Conselho não informado", 148, signatureY + 24, { width: 300, align: "center" });
 
     doc.fillColor(colors.muted).font("Helvetica").fontSize(9)
-      .text("BioO3", 48, doc.page.height - 38, { width: 499, align: "center" });
+      .text("BioO3", 48, doc.page.height - doc.page.margins.bottom - 12, { width: 499, align: "center" });
 
     doc.end();
   });

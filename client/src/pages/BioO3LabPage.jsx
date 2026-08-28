@@ -398,7 +398,7 @@ export default function BioO3LabPage() {
         <head>
           <title>Prescrição BioO3</title>
           <style>
-            @page { size: A4; margin: 18mm; }
+            @page { size: A4; margin: 14mm; }
             * { box-sizing: border-box; }
             body { margin: 0; color: #122533; font-family: Arial, sans-serif; font-size: 12px; line-height: 1.45; }
             header { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 2px solid #bae6fd; padding-bottom: 16px; margin-bottom: 18px; }
@@ -416,12 +416,16 @@ export default function BioO3LabPage() {
             th { background: #e0f2fe; color: #075985; font-size: 10px; text-align: left; text-transform: uppercase; }
             th, td { border: 1px solid #d8edf7; padding: 8px; vertical-align: top; }
             .prescription { border: 1px solid #d8edf7; border-radius: 8px; padding: 12px; white-space: normal; }
-            .signature { margin-top: 54px; display: grid; justify-content: center; }
+            .signature { margin-top: 28px; display: grid; justify-content: center; break-inside: avoid; page-break-inside: avoid; }
             .signature-line { width: 300px; border-top: 1px solid #122533; padding-top: 8px; text-align: center; color: #122533; }
             .signature-line strong { display: block; font-size: 12px; text-transform: uppercase; }
             .signature-line span { display: block; margin-top: 3px; color: #647888; font-size: 11px; }
             footer { position: fixed; bottom: 0; left: 0; right: 0; color: #647888; font-size: 10px; text-align: center; }
-            @media print { button { display: none; } }
+            @media print {
+              h2 { margin-top: 16px; }
+              table { margin-bottom: 12px; }
+              button { display: none; }
+            }
           </style>
         </head>
         <body>
