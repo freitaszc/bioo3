@@ -1,63 +1,62 @@
-# Security Policy
+# Security
 
-## Scope
+BioO3 processes patient, clinical, laboratory, account, inventory, and financial information. Because the application may be used with real patient data, security and privacy are important parts of its development and deployment.
 
-BioO3 is an application that can process patient, clinical, laboratory, account, inventory, and financial information. This policy applies to the code and configuration in this repository.
+This repository contains the application's source code and development configuration. Development credentials, sample configurations, and local Docker settings should not be used directly in production.
 
-The project is under active development. A public repository does not mean that the application is approved for production use or for storing regulated health information.
+Production deployments should be configured according to the security, privacy, and data-protection requirements that apply to the clinic.
 
-## Reporting a vulnerability
+## Reporting security issues
 
-Please do not report security vulnerabilities in a public GitHub issue.
+If you find a security issue, please do not open a public GitHub issue with details about the vulnerability.
 
-Use GitHub's private vulnerability reporting or security advisory workflow for this repository when available. If private reporting is unavailable, contact the repository maintainers through the owner's GitHub profile and ask for a private security contact. Include:
+Instead, use GitHub's private vulnerability reporting feature to report it directly through this repository.
 
-- A short description of the vulnerability and its impact
-- The affected component, route, or version/commit
-- Reproduction steps or a minimal proof of concept
-- Any suggested mitigation
+When reporting an issue, include:
 
-Do not include passwords, API keys, private keys, patient information, medical reports, database exports, or other sensitive data in the report. Redact logs and screenshots before sharing them.
+- A short description of the problem
+- The affected part of the application
+- Steps to reproduce it
+- The possible impact
+- A suggested fix, if you have one
 
-Please allow maintainers reasonable time to investigate and remediate a report before public disclosure.
+Do not include passwords, API keys, private keys, patient information, medical documents, database exports, or other sensitive information in reports, logs, or screenshots.
 
-## Never commit sensitive data
+Please report vulnerabilities privately so they can be reviewed and fixed before being posted publicly.
 
-The following must remain outside Git and outside public issue or pull-request content:
+## Sensitive data
 
-- `.env` files and deployment secrets
-- JWT, SMTP, Mux, database, payment, or fiscal-provider credentials
+Never commit sensitive or production data to this repository, including:
+
+- `.env` files
+- API keys and access tokens
+- JWT secrets
+- Database credentials
+- SMTP credentials
+- Mux credentials and private keys
+- WhatsApp or Meta credentials
+- Payment or fiscal-provider credentials
 - Private keys and certificates
-- PostgreSQL dumps, backups, or local database files
-- Uploaded laboratory reports, PDFs, scans, or generated patient documents
-- Real patient, clinic, employee, prescriber, or financial records
-- Production logs that contain identifiers, request data, or personal information
+- Production database backups or dumps
+- Patient records
+- Laboratory reports, PDFs, or scans
+- Clinic, employee, prescriber, or financial records
+- Production logs containing personal or sensitive information
 
-Use synthetic fixtures for tests and demonstrations. The development seed script can read legacy JSON files from a sibling `Web/` directory when present; verify those files before running it and never point it at a production database.
+Use test or synthetic data when developing, testing, or demonstrating the project.
 
-## Deployment baseline
+The development seed script may read data from legacy files when they are available. Always verify the data being imported and never run development seed scripts against a production database.
 
-Before deploying the application:
+## Patient and clinical data
 
-1. Generate a unique, high-entropy `JWT_SECRET` and store it in a secret manager.
-2. Use unique database and administrator credentials; never use the defaults from local Docker Compose in production.
-3. Use HTTPS, set `NODE_ENV=production`, and restrict `CLIENT_ORIGIN` to trusted origins.
-4. Do not expose PostgreSQL directly to the public internet. Restrict database, storage, and administrative access by network and role.
-5. Keep uploads and generated documents in private storage with authenticated access, encryption, retention controls, and access logging.
-6. Configure backups, restore testing, monitoring, alerting, and an incident-response process.
-7. Run dependency and container updates regularly, review lockfile changes, and test security fixes before deployment.
-8. Have qualified privacy, legal, and clinical stakeholders review the system and its data flows for the jurisdictions where it will operate.
+Access to patient and clinical information should be limited to authorized users based on their role and responsibilities.
 
-## Credential or data exposure response
+Production deployments should protect patient records, laboratory reports, generated documents, and other sensitive information from unauthorized access.
 
-If a secret may have been exposed:
+The clinic operating BioO3 is responsible for making sure its deployment and use of the application follows the privacy, healthcare, and data-protection requirements that apply to it.
 
-1. Revoke or rotate it immediately.
-2. Review access logs and identify affected systems and time windows.
-3. Remove the secret from the working tree and Git history as appropriate; deleting a file in a later commit does not invalidate an exposed credential.
-4. Preserve relevant evidence without copying sensitive data into issues or chat.
-5. Assess whether personal or regulated information was accessed and follow the applicable notification and response requirements.
+## Clinical information
 
-## Safe handling of clinical output
+Laboratory analysis, prescriptions, treatment plans, and other clinical information generated or processed through BioO3 should be reviewed by qualified healthcare professionals when appropriate.
 
-Laboratory analysis, prescriptions, plans, and other clinical output must be reviewed by qualified professionals. This software is not a substitute for clinical judgment, diagnosis, treatment, or legal and regulatory review.
+BioO3 is intended to support clinic workflows and should not replace professional medical judgment.
