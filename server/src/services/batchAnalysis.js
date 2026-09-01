@@ -17,6 +17,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const referencesPath = path.resolve(__dirname, "../data/references.json");
 export const BATCH_TEST_NAMES = ["Vitamina B12", "25-hidroxi D3"];
 const MAX_PATIENTS = 50;
+const BATCH_TRANSACTION_TIMEOUT_MS = 60_000;
 const RETENTION_DAYS = 90;
 
 export function expiresAtFromNow() {
@@ -222,7 +223,7 @@ export async function processBatch(batchId) {
         where: { id: batchId },
         data: { status: "REVIEW", candidateCount: candidates.length, processedCount: candidates.length, error: "" }
       });
-    });
+    }, { maxWait: 10_000, timeout: BATCH_TRANSACTION_TIMEOUT_MS });
   } catch (error) {
     await prisma.analysisBatch.update({
       where: { id: batchId },
