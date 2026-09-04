@@ -138,3 +138,35 @@ test("warns when repeated patients have conflicting values for the same analysis
   assert.match(merged[0].error, /Revise e selecione o valor a ser considerado/);
   assert.equal(merged[0].values["25-hidroxi D3"].value, 60);
 });
+
+test("preserves formatted conflicting raw values when encoding review choices", () => {
+  const merged = mergeBatchCandidates([
+    {
+      identity: "name:paciente-formatado",
+      sourceFileId: "file-1",
+      pageStart: 1,
+      pageEnd: 1,
+      patient: { name: "Paciente Formatado", age: 61, cpf: "", gender: "F" },
+      values: {
+        "Vitamina B12": { testName: "Vitamina B12", value: 300, rawValue: "< 300 | repetido" }
+      },
+      error: ""
+    },
+    {
+      identity: "name:paciente-formatado",
+      sourceFileId: "file-1",
+      pageStart: 2,
+      pageEnd: 2,
+      patient: { name: "Paciente Formatado", age: 61, cpf: "", gender: "F" },
+      values: {
+        "Vitamina B12": { testName: "Vitamina B12", value: 450, rawValue: "450,0 pg/mL" }
+      },
+      error: ""
+    }
+  ]);
+
+  assert.deepEqual(conflictingValuesFromRawValue(merged[0].values["Vitamina B12"].rawValue), [
+    "< 300 | repetido",
+    "450,0 pg/mL"
+  ]);
+});

@@ -62,16 +62,17 @@ function normalizedConflictValue(value) {
 }
 
 function conflictRawValue(values) {
-  return `${CONFLICT_RAW_VALUE_PREFIX}${values.join("|")}`;
+  return `${CONFLICT_RAW_VALUE_PREFIX}${JSON.stringify(values)}`;
 }
 
 export function conflictingValuesFromRawValue(rawValue = "") {
   if (!String(rawValue).startsWith(CONFLICT_RAW_VALUE_PREFIX)) return [];
-  return String(rawValue)
-    .slice(CONFLICT_RAW_VALUE_PREFIX.length)
-    .split("|")
-    .map((value) => value.trim())
-    .filter(Boolean);
+  try {
+    const parsed = JSON.parse(String(rawValue).slice(CONFLICT_RAW_VALUE_PREFIX.length));
+    return Array.isArray(parsed) ? parsed.map((value) => String(value).trim()).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function conflictWarning(testName, values) {
