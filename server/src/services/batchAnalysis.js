@@ -231,7 +231,7 @@ export function mergeBatchCandidates(candidates) {
 
       const byValue = new Map();
       for (const match of matches) {
-        const displayValue = normalizedConflictValue(match.rawValue || match.value);
+        const displayValue = normalizedConflictValue(match.rawValue ?? match.value);
         if (!displayValue) continue;
         if (!byValue.has(displayValue)) byValue.set(displayValue, match);
       }
