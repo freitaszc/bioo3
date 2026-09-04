@@ -191,25 +191,29 @@ function segmentResults(segment, references) {
   });
 }
 
-export function mergeBatchCandidates(candidates) {
+function sameExtractedPatient(left = {}, right = {}) {
+  const leftCpf = normalizedCpf(left.cpf);
+  const rightCpf = normalizedCpf(right.cpf);
+  if (leftCpf && rightCpf) return leftCpf === rightCpf;
+  const leftName = normalizeText(left.name);
+  const rightName = normalizeText(right.name);
+  return Boolean(leftName && rightName && leftName === rightName);
+}
+
+export function mergeBatchCandidates(candidates = []) {
   const groups = [];
-  const grouped = new Map();
   for (const candidate of candidates) {
-    if (!candidate.identity) {
-      groups.push([candidate]);
-      continue;
-    }
-    if (!grouped.has(candidate.identity)) {
-      const list = [];
-      grouped.set(candidate.identity, list);
-      groups.push(list);
-    }
-    grouped.get(candidate.identity).push(candidate);
+    const group = candidate.identity
+      ? groups.find((items) => items.some((item) => sameExtractedPatient(item.patient, candidate.patient)))
+      : null;
+    if (group) group.push(candidate);
+    else groups.push([candidate]);
   }
 
   return groups.map((group) => {
     if (group.length === 1) return group[0];
     const [first] = group;
+    const sameSourceFile = group.every((candidate) => candidate.sourceFileId === first.sourceFileId);
     const pageStarts = numericValues(group.map((candidate) => candidate.pageStart));
     const pageEnds = numericValues(group.map((candidate) => candidate.pageEnd));
     const mergedPatient = {
@@ -253,8 +257,9 @@ export function mergeBatchCandidates(candidates) {
 
     return {
       ...first,
-      pageStart: pageStarts.length ? Math.min(...pageStarts) : first.pageStart,
-      pageEnd: pageEnds.length ? Math.max(...pageEnds) : first.pageEnd,
+      identity: patientIdentity(mergedPatient),
+      pageStart: sameSourceFile && pageStarts.length ? Math.min(...pageStarts) : first.pageStart,
+      pageEnd: sameSourceFile && pageEnds.length ? Math.max(...pageEnds) : first.pageEnd,
       patient: mergedPatient,
       values: mergedValues,
       error: joinMessages([
