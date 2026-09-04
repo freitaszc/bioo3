@@ -156,6 +156,85 @@ function segmentResults(segment, references) {
   });
 }
 
+function sameExtractedPatient(left = {}, right = {}) {
+  const leftCpf = normalizedCpf(left.cpf);
+  const rightCpf = normalizedCpf(right.cpf);
+  if (leftCpf && rightCpf) return leftCpf === rightCpf;
+  const leftName = normalizeText(left.name);
+  const rightName = normalizeText(right.name);
+  return Boolean(leftName && rightName && leftName === rightName);
+}
+
+function mergePatientData(candidates) {
+  const patient = { ...(candidates[0]?.patient || {}) };
+  for (const candidate of candidates.slice(1)) {
+    const incoming = candidate.patient || {};
+    if (!patient.name && incoming.name) patient.name = incoming.name;
+    if (!patient.age && incoming.age) patient.age = incoming.age;
+    if (!patient.cpf && incoming.cpf) patient.cpf = incoming.cpf;
+    if (!patient.gender && incoming.gender) patient.gender = incoming.gender;
+  }
+  return patient;
+}
+
+export function mergeBatchCandidates(candidates = []) {
+  const groups = [];
+  for (const candidate of candidates) {
+    const group = candidate.identity
+      ? groups.find((items) => items.some((item) => sameExtractedPatient(item.patient, candidate.patient)))
+      : null;
+    if (group) group.push(candidate);
+    else groups.push([candidate]);
+  }
+
+  return groups.map((group) => {
+    if (group.length === 1) return group[0];
+
+    const patient = mergePatientData(group);
+    const values = {};
+    const conflicts = [];
+
+    for (const testName of BATCH_TEST_NAMES) {
+      const extracted = group
+        .map((candidate) => candidate.values?.[testName])
+        .filter((result) => result && Number.isFinite(Number(result.value)));
+      const byValue = new Map();
+      for (const result of extracted) byValue.set(Number(result.value), result);
+
+      if (byValue.size === 1) {
+        values[testName] = [...byValue.values()][0];
+      } else if (byValue.size > 1) {
+        const conflictingValues = [...byValue.keys()];
+        conflicts.push(`${testName}: ${conflictingValues.join(" / ")}`);
+        values[testName] = {
+          testName,
+          value: null,
+          rawValue: `CONFLICT:${conflictingValues.join("|")}`,
+          sourceLine: "",
+          lineNumber: 0
+        };
+      }
+    }
+
+    const existingErrors = [...new Set(group.map((candidate) => candidate.error).filter(Boolean))];
+    if (conflicts.length) {
+      existingErrors.push(`Mais de um valor foi encontrado para a mesma análise (${conflicts.join("; ")}). Revise e selecione o valor a ser considerado.`);
+    }
+
+    const first = group[0];
+    const sameSourceFile = group.every((candidate) => candidate.sourceFileId === first.sourceFileId);
+    return {
+      ...first,
+      identity: patientIdentity(patient),
+      patient,
+      values,
+      pageStart: sameSourceFile ? Math.min(...group.map((candidate) => candidate.pageStart)) : first.pageStart,
+      pageEnd: sameSourceFile ? Math.max(...group.map((candidate) => candidate.pageEnd)) : first.pageEnd,
+      error: existingErrors.join(" ")
+    };
+  });
+}
+
 export async function processBatch(batchId) {
   const claimed = await prisma.analysisBatch.updateMany({
     where: { id: batchId, status: "QUEUED" },
@@ -177,22 +256,16 @@ export async function processBatch(batchId) {
     }
 
     if (!candidates.length) throw new Error("Nenhum paciente foi identificado nos PDFs.");
-    if (candidates.length > MAX_PATIENTS) throw new Error(`O lote contém ${candidates.length} pacientes; o limite é ${MAX_PATIENTS}.`);
-
-    const identityCounts = new Map();
-    for (const candidate of candidates) {
-      if (candidate.identity) identityCounts.set(candidate.identity, (identityCounts.get(candidate.identity) || 0) + 1);
-    }
+    const mergedCandidates = mergeBatchCandidates(candidates);
+    if (mergedCandidates.length > MAX_PATIENTS) throw new Error(`O lote contém ${mergedCandidates.length} pacientes; o limite é ${MAX_PATIENTS}.`);
 
     await prisma.$transaction(async (tx) => {
       await tx.labAnalysis.deleteMany({ where: { batchId } });
-      for (const candidate of candidates) {
+      for (const candidate of mergedCandidates) {
         const matching = matchPatient(candidate.patient, patients);
-        const duplicate = candidate.identity && identityCounts.get(candidate.identity) > 1;
         const results = segmentResults(candidate, references);
         const texts = deriveAnalysisTexts(candidate.patient, results, references);
         const error = candidate.error
-          || (duplicate ? "O mesmo paciente aparece em mais de um segmento do lote." : "")
           || (matching.status === "AMBIGUOUS" ? "Mais de um paciente cadastrado corresponde aos dados extraídos." : "")
           || (!candidate.patient.name ? "Nome do paciente não identificado." : "")
           || (!candidate.patient.age ? "Idade do paciente não identificada." : "")
@@ -209,7 +282,7 @@ export async function processBatch(batchId) {
             patientAge: Number(candidate.patient.age) || 0,
             patientCpf: candidate.patient.cpf || "",
             patientGender: candidate.patient.gender || "",
-            matchingStatus: duplicate ? "DUPLICATE" : matching.status,
+            matchingStatus: matching.status,
             status: "DRAFT",
             diagnosisText: texts.diagnosisText,
             prescriptionText: texts.prescriptionText,
@@ -221,7 +294,7 @@ export async function processBatch(batchId) {
       }
       await tx.analysisBatch.update({
         where: { id: batchId },
-        data: { status: "REVIEW", candidateCount: candidates.length, processedCount: candidates.length, error: "" }
+        data: { status: "REVIEW", candidateCount: mergedCandidates.length, processedCount: mergedCandidates.length, error: "" }
       });
     }, { maxWait: 10_000, timeout: BATCH_TRANSACTION_TIMEOUT_MS });
   } catch (error) {
