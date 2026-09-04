@@ -337,6 +337,9 @@ batchLabRoutes.post("/batches/:id/confirm", async (req, res, next) => {
           data: { patientId: patient.id, matchingStatus: wasExisting ? "MATCHED" : "CREATED", status: "CONFIRMED", confirmedAt, error: "" }
       })));
       await tx.analysisBatch.update({ where: { id: batch.id }, data: { status: "CONFIRMED", confirmedAt, error: "" } });
+    }, {
+      maxWait: 10_000,
+      timeout: 30_000
     });
 
     setImmediate(() => generateReportsForBatch(batch.id).catch(console.error));
