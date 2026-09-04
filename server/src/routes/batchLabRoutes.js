@@ -7,6 +7,7 @@ import { normalizeWhatsAppPhone, validWhatsAppPhone } from "../inputSanitizers.j
 import {
   BATCH_TEST_NAMES,
   classifyValue,
+  conflictingValuesFromRawValue,
   deriveAnalysisTexts,
   expiresAtFromNow,
   generateReportForAnalysis,
@@ -171,6 +172,10 @@ async function resolveMatching(clinicId, patient) {
   return { matchingStatus: patient.patientName && patient.patientAge ? "NEW" : "NEEDS_REVIEW", patientId: null };
 }
 
+function joinMessages(messages) {
+  return [...new Set(messages.filter(Boolean))].join(" ");
+}
+
 batchLabRoutes.patch("/batches/:batchId/analyses/:analysisId", async (req, res, next) => {
   try {
     const analysis = await prisma.labAnalysis.findFirst({
@@ -195,24 +200,39 @@ batchLabRoutes.patch("/batches/:batchId/analyses/:analysisId", async (req, res, 
       const raw = wasSupplied ? supplied.get(result.testName) : result.value;
       const value = raw === "" || raw === null ? null : Number(raw);
       if (value !== null && !Number.isFinite(value)) return res.status(400).json({ error: `Valor inválido para ${result.testName}.` });
+      const conflictingValues = conflictingValuesFromRawValue(result.rawValue);
+      const unresolvedConflict = conflictingValues.length > 1 && value === null;
       updatedResults.push({
         ...result,
         value,
-        rawValue: wasSupplied ? (value === null ? "" : String(value)) : result.rawValue,
+        rawValue: unresolvedConflict
+          ? result.rawValue
+          : wasSupplied
+            ? (value === null ? "" : String(value))
+            : result.rawValue,
         ideal: String(references[result.testName].ideal),
         status: classifyValue(value, references[result.testName].ideal),
         edited: wasSupplied ? true : result.edited
       });
     }
-    const error = !patient.patientName
-      ? "Nome do paciente não informado."
-      : !patient.patientAge
-        ? "Idade do paciente não informada."
-        : matching.matchingStatus === "AMBIGUOUS"
-          ? "Mais de um paciente cadastrado corresponde aos dados informados."
-          : updatedResults.every((result) => result.value === null)
-            ? "Informe ao menos um valor de B12 ou D3."
-            : "";
+    const conflictWarnings = updatedResults
+      .filter((result) => result.value === null)
+      .map((result) => {
+        const values = conflictingValuesFromRawValue(result.rawValue);
+        return values.length > 1
+          ? `Mais de um valor foi encontrado para ${result.testName} (${values.join(", ")}). Revise e selecione o valor a ser considerado.`
+          : "";
+      })
+      .filter(Boolean);
+    const error = joinMessages([
+      !patient.patientName ? "Nome do paciente não informado." : "",
+      !patient.patientAge ? "Idade do paciente não informada." : "",
+      matching.matchingStatus === "AMBIGUOUS" ? "Mais de um paciente cadastrado corresponde aos dados informados." : "",
+      ...conflictWarnings,
+      updatedResults.every((result) => result.value === null) && !conflictWarnings.length
+        ? "Informe ao menos um valor de B12 ou D3."
+        : ""
+    ]);
     const texts = deriveAnalysisTexts({
       name: patient.patientName,
       age: patient.patientAge,
