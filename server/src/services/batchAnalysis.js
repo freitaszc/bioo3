@@ -241,9 +241,7 @@ export function mergeBatchCandidates(candidates) {
         mergedValues[testName] = {
           ...matches[0],
           value: null,
-          rawValue: conflictRawValue(values),
-          sourceLine: "",
-          lineNumber: 0
+          rawValue: conflictRawValue(values)
         };
         continue;
       }

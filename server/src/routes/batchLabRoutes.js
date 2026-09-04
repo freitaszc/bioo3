@@ -232,12 +232,13 @@ batchLabRoutes.patch("/batches/:batchId/analyses/:analysisId", async (req, res, 
           : "";
       })
       .filter(Boolean);
+    const hasConcreteValue = updatedResults.some((result) => result.value !== null);
     const error = joinMessages([
       !patient.patientName ? "Nome do paciente não informado." : "",
       !patient.patientAge ? "Idade do paciente não informada." : "",
       matching.matchingStatus === "AMBIGUOUS" ? "Mais de um paciente cadastrado corresponde aos dados informados." : "",
       ...conflictWarnings,
-      updatedResults.every((result) => result.value === null) && !conflictWarnings.length
+      !hasConcreteValue
         ? "Informe ao menos um valor de B12 ou D3."
         : ""
     ]);
