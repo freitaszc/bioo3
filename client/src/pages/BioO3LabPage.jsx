@@ -45,6 +45,10 @@ function batchResult(analysis, testName) {
   return (analysis?.results || []).find((result) => result.testName === testName) || { testName, value: null, status: "MISSING" };
 }
 
+function conflictingValues(result) {
+  return result?.conflictingValues || [];
+}
+
 function batchOptionLabel(batch) {
   const createdAt = new Date(batch.createdAt);
   const date = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(createdAt);
@@ -742,7 +746,60 @@ export default function BioO3LabPage() {
 
       {batchAnalysis && (() => {
         const editable = batches.find((item) => item.id === batchAnalysis.batchId)?.status === "REVIEW";
-        return createPortal(<div className="modal-backdrop batch-analysis-backdrop" role="dialog" aria-modal="true"><div className="modal-card batch-analysis-modal"><button className="modal-close" type="button" onClick={() => setBatchAnalysis(null)}>×</button><h2>Detalhes da análise</h2><p className="muted-text">Páginas {batchAnalysis.pageStart}–{batchAnalysis.pageEnd}</p><div className="form-grid"><label className="full-width"><span>Paciente</span><input value={batchAnalysis.patientName} disabled={!editable} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, patientName: event.target.value })} /></label><label><span>Idade</span><input type="number" value={batchAnalysis.patientAge || ""} disabled={!editable} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, patientAge: event.target.value })} /></label><label><span>CPF</span><input value={batchAnalysis.patientCpf || ""} disabled={!editable} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, patientCpf: digitsOnly(event.target.value, 11) })} /></label>{["Vitamina B12", "25-hidroxi D3"].map((testName) => { const result = batchResult(batchAnalysis, testName); return <label key={testName}><span>{testName}</span><input type="number" step="any" value={result.value ?? ""} disabled={!editable} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, results: batchAnalysis.results.map((item) => item.testName === testName ? { ...item, value: event.target.value } : item) })} /></label>; })}<label className="full-width"><span>Prescrição</span><textarea rows="10" value={batchAnalysis.prescriptionText || ""} disabled={!editable} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, prescriptionText: event.target.value, prescriptionEdited: true })} placeholder="Nenhuma prescrição gerada." /></label></div><div className="modal-actions batch-analysis-actions">{batchAnalysis.reportUrl && <><a className="secondary-button" href={apiAssetUrl(batchAnalysis.reportUrl)} target="_blank" rel="noreferrer">Ver prescrição</a><a className="secondary-button" href={`${apiAssetUrl(batchAnalysis.reportUrl)}?disposition=attachment`}>Baixar prescrição</a></>}{editable && <button className="primary-button" type="button" disabled={batchLoading} onClick={saveBatchAnalysis}>{batchLoading ? "Salvando..." : "Salvar alterações"}</button>}</div></div></div>, document.body);
+        const titleId = `batch-analysis-title-${batchAnalysis.id}`;
+        const descriptionId = batchAnalysis.error ? `batch-analysis-description-${batchAnalysis.id}` : undefined;
+        return createPortal(
+          <div
+            className="modal-backdrop batch-analysis-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            aria-describedby={descriptionId}
+          >
+            <div className="modal-card batch-analysis-modal">
+              <button className="modal-close" type="button" onClick={() => setBatchAnalysis(null)}>×</button>
+              <h2 id={titleId}>Detalhes da análise</h2>
+              <p className="muted-text">Páginas {batchAnalysis.pageStart}–{batchAnalysis.pageEnd}</p>
+              {batchAnalysis.error && <p id={descriptionId} className="form-error">{batchAnalysis.error}</p>}
+              <div className="form-grid">
+                <label className="full-width">
+                  <span>Paciente</span>
+                  <input value={batchAnalysis.patientName} disabled={!editable} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, patientName: event.target.value })} />
+                </label>
+                <label>
+                  <span>Idade</span>
+                  <input type="number" value={batchAnalysis.patientAge || ""} disabled={!editable} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, patientAge: event.target.value })} />
+                </label>
+                <label>
+                  <span>CPF</span>
+                  <input value={batchAnalysis.patientCpf || ""} disabled={!editable} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, patientCpf: digitsOnly(event.target.value, 11) })} />
+                </label>
+                {["Vitamina B12", "25-hidroxi D3"].map((testName) => {
+                  const result = batchResult(batchAnalysis, testName);
+                  const values = conflictingValues(result);
+                  const helpId = values.length > 1 ? `batch-analysis-conflict-${batchAnalysis.id}-${testName.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}` : undefined;
+                  return <label key={testName}>
+                    <span>{testName}</span>
+                    <input type="number" step="any" aria-describedby={helpId} value={result.value ?? ""} disabled={!editable} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, results: batchAnalysis.results.map((item) => item.testName === testName ? { ...item, value: event.target.value } : item) })} />
+                    {values.length > 1 && <small id={helpId} className="form-error">Valores encontrados: {values.join(", ")}.{result.value !== null && result.value !== "" ? ` Valor selecionado: ${result.value}.` : " Informe o valor a considerar."}</small>}
+                  </label>;
+                })}
+                <label className="full-width">
+                  <span>Prescrição</span>
+                  <textarea rows="10" value={batchAnalysis.prescriptionText || ""} disabled={!editable} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, prescriptionText: event.target.value, prescriptionEdited: true })} placeholder="Nenhuma prescrição gerada." />
+                </label>
+              </div>
+              <div className="modal-actions batch-analysis-actions">
+                {batchAnalysis.reportUrl && <>
+                  <a className="secondary-button" href={apiAssetUrl(batchAnalysis.reportUrl)} target="_blank" rel="noreferrer">Ver prescrição</a>
+                  <a className="secondary-button" href={`${apiAssetUrl(batchAnalysis.reportUrl)}?disposition=attachment`}>Baixar prescrição</a>
+                </>}
+                {editable && <button className="primary-button" type="button" disabled={batchLoading} onClick={saveBatchAnalysis}>{batchLoading ? "Salvando..." : "Salvar alterações"}</button>}
+              </div>
+            </div>
+          </div>,
+          document.body
+        );
       })()}
 
       {doctorModal && (

@@ -7,6 +7,7 @@ import { normalizeWhatsAppPhone, validWhatsAppPhone } from "../inputSanitizers.j
 import {
   BATCH_TEST_NAMES,
   classifyValue,
+  conflictingValuesFromRawValue,
   deriveAnalysisTexts,
   expiresAtFromNow,
   generateReportForAnalysis,
@@ -43,6 +44,23 @@ const batchInclude = {
   }
 };
 
+function serializeAnalysis(analysis, { source, batchId } = {}) {
+  const report = analysis.documents?.find((document) => document.kind === "REPORT");
+  return {
+    ...analysis,
+    results: (analysis.results || []).map((result) => ({
+      ...result,
+      conflictingValues: conflictingValuesFromRawValue(result.rawValue)
+    })),
+    originalUrl: source && !source.purgedAt && source.expiresAt > new Date()
+      ? `/api/lab/batches/${batchId || analysis.batchId}/files/${analysis.sourceFileId}`
+      : null,
+    reportUrl: report && !report.purgedAt && report.expiresAt > new Date()
+      ? `/api/lab/analyses/${analysis.id}/report`
+      : null
+  };
+}
+
 function serializeBatch(batch) {
   const sourceById = new Map((batch.sourceFiles || []).map((file) => [file.id, file]));
   return {
@@ -53,19 +71,10 @@ function serializeBatch(batch) {
         ? `/api/lab/batches/${batch.id}/files/${file.id}`
         : null
     })),
-    analyses: (batch.analyses || []).map((analysis) => {
-      const report = analysis.documents?.find((document) => document.kind === "REPORT");
-      const source = sourceById.get(analysis.sourceFileId);
-      return {
-        ...analysis,
-        originalUrl: source && !source.purgedAt && source.expiresAt > new Date()
-          ? `/api/lab/batches/${batch.id}/files/${analysis.sourceFileId}`
-          : null,
-        reportUrl: report && !report.purgedAt && report.expiresAt > new Date()
-          ? `/api/lab/analyses/${analysis.id}/report`
-          : null
-      };
-    })
+    analyses: (batch.analyses || []).map((analysis) => serializeAnalysis(analysis, {
+      source: sourceById.get(analysis.sourceFileId),
+      batchId: batch.id
+    }))
   };
 }
 
@@ -171,6 +180,10 @@ async function resolveMatching(clinicId, patient) {
   return { matchingStatus: patient.patientName && patient.patientAge ? "NEW" : "NEEDS_REVIEW", patientId: null };
 }
 
+function joinMessages(messages) {
+  return [...new Set(messages.filter(Boolean))].join(" ");
+}
+
 batchLabRoutes.patch("/batches/:batchId/analyses/:analysisId", async (req, res, next) => {
   try {
     const analysis = await prisma.labAnalysis.findFirst({
@@ -182,7 +195,7 @@ batchLabRoutes.patch("/batches/:batchId/analyses/:analysisId", async (req, res, 
 
     if (req.body?.excluded === true) {
       const excluded = await prisma.labAnalysis.update({ where: { id: analysis.id }, data: { status: "EXCLUDED", error: "" }, include: { results: true, documents: true, whatsappDelivery: true } });
-      return res.json({ analysis: excluded });
+      return res.json({ analysis: serializeAnalysis({ ...excluded, batchId: analysis.batchId, sourceFileId: analysis.sourceFileId }) });
     }
 
     const patient = normalizePatientInput(req.body, analysis);
@@ -195,24 +208,40 @@ batchLabRoutes.patch("/batches/:batchId/analyses/:analysisId", async (req, res, 
       const raw = wasSupplied ? supplied.get(result.testName) : result.value;
       const value = raw === "" || raw === null ? null : Number(raw);
       if (value !== null && !Number.isFinite(value)) return res.status(400).json({ error: `Valor inválido para ${result.testName}.` });
+      const conflictingValues = conflictingValuesFromRawValue(result.rawValue);
+      const unresolvedConflict = conflictingValues.length > 1 && value === null;
       updatedResults.push({
         ...result,
         value,
-        rawValue: wasSupplied ? (value === null ? "" : String(value)) : result.rawValue,
+        rawValue: unresolvedConflict
+          ? result.rawValue
+          : wasSupplied
+            ? (value === null ? "" : String(value))
+            : result.rawValue,
         ideal: String(references[result.testName].ideal),
         status: classifyValue(value, references[result.testName].ideal),
         edited: wasSupplied ? true : result.edited
       });
     }
-    const error = !patient.patientName
-      ? "Nome do paciente não informado."
-      : !patient.patientAge
-        ? "Idade do paciente não informada."
-        : matching.matchingStatus === "AMBIGUOUS"
-          ? "Mais de um paciente cadastrado corresponde aos dados informados."
-          : updatedResults.every((result) => result.value === null)
-            ? "Informe ao menos um valor de B12 ou D3."
-            : "";
+    const conflictWarnings = updatedResults
+      .filter((result) => result.value === null)
+      .map((result) => {
+        const values = conflictingValuesFromRawValue(result.rawValue);
+        return values.length > 1
+          ? `Mais de um valor foi encontrado para ${result.testName} (${values.join(", ")}). Revise e selecione o valor a ser considerado.`
+          : "";
+      })
+      .filter(Boolean);
+    if (conflictWarnings.length) return res.status(400).json({ error: joinMessages(conflictWarnings) });
+    const hasConcreteValue = updatedResults.some((result) => result.value !== null);
+    const error = joinMessages([
+      !patient.patientName ? "Nome do paciente não informado." : "",
+      !patient.patientAge ? "Idade do paciente não informada." : "",
+      matching.matchingStatus === "AMBIGUOUS" ? "Mais de um paciente cadastrado corresponde aos dados informados." : "",
+      !hasConcreteValue
+        ? "Informe ao menos um valor de B12 ou D3."
+        : ""
+    ]);
     const texts = deriveAnalysisTexts({
       name: patient.patientName,
       age: patient.patientAge,
@@ -247,7 +276,7 @@ batchLabRoutes.patch("/batches/:batchId/analyses/:analysisId", async (req, res, 
     }));
     const transactionResults = await prisma.$transaction(operations);
     const updated = transactionResults.at(-1);
-    return res.json({ analysis: updated });
+    return res.json({ analysis: serializeAnalysis({ ...updated, batchId: analysis.batchId, sourceFileId: analysis.sourceFileId }) });
   } catch (error) {
     next(error);
   }
