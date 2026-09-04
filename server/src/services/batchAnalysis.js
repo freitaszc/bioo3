@@ -51,6 +51,10 @@ function firstPresent(values) {
   return values.find((value) => value !== null && value !== undefined && value !== "");
 }
 
+function numericValues(values) {
+  return values.filter((value) => Number.isFinite(value));
+}
+
 function normalizedConflictValue(value) {
   const numeric = Number(value);
   if (Number.isFinite(numeric)) return String(numeric);
@@ -207,6 +211,8 @@ export function mergeBatchCandidates(candidates) {
   return groups.map((group) => {
     if (group.length === 1) return group[0];
     const [first] = group;
+    const pageStarts = numericValues(group.map((candidate) => candidate.pageStart));
+    const pageEnds = numericValues(group.map((candidate) => candidate.pageEnd));
     const mergedPatient = {
       name: firstPresent(group.map((candidate) => candidate.patient?.name)) || "",
       age: firstPresent(group.map((candidate) => candidate.patient?.age)) || "",
@@ -248,8 +254,8 @@ export function mergeBatchCandidates(candidates) {
 
     return {
       ...first,
-      pageStart: Math.min(...group.map((candidate) => candidate.pageStart)),
-      pageEnd: Math.max(...group.map((candidate) => candidate.pageEnd)),
+      pageStart: pageStarts.length ? Math.min(...pageStarts) : first.pageStart,
+      pageEnd: pageEnds.length ? Math.max(...pageEnds) : first.pageEnd,
       patient: mergedPatient,
       values: mergedValues,
       error: joinMessages([

@@ -44,6 +44,23 @@ const batchInclude = {
   }
 };
 
+function serializeAnalysis(analysis, { source, batchId } = {}) {
+  const report = analysis.documents?.find((document) => document.kind === "REPORT");
+  return {
+    ...analysis,
+    results: (analysis.results || []).map((result) => ({
+      ...result,
+      conflictingValues: conflictingValuesFromRawValue(result.rawValue)
+    })),
+    originalUrl: source && !source.purgedAt && source.expiresAt > new Date()
+      ? `/api/lab/batches/${batchId || analysis.batchId}/files/${analysis.sourceFileId}`
+      : null,
+    reportUrl: report && !report.purgedAt && report.expiresAt > new Date()
+      ? `/api/lab/analyses/${analysis.id}/report`
+      : null
+  };
+}
+
 function serializeBatch(batch) {
   const sourceById = new Map((batch.sourceFiles || []).map((file) => [file.id, file]));
   return {
@@ -54,19 +71,10 @@ function serializeBatch(batch) {
         ? `/api/lab/batches/${batch.id}/files/${file.id}`
         : null
     })),
-    analyses: (batch.analyses || []).map((analysis) => {
-      const report = analysis.documents?.find((document) => document.kind === "REPORT");
-      const source = sourceById.get(analysis.sourceFileId);
-      return {
-        ...analysis,
-        originalUrl: source && !source.purgedAt && source.expiresAt > new Date()
-          ? `/api/lab/batches/${batch.id}/files/${analysis.sourceFileId}`
-          : null,
-        reportUrl: report && !report.purgedAt && report.expiresAt > new Date()
-          ? `/api/lab/analyses/${analysis.id}/report`
-          : null
-      };
-    })
+    analyses: (batch.analyses || []).map((analysis) => serializeAnalysis(analysis, {
+      source: sourceById.get(analysis.sourceFileId),
+      batchId: batch.id
+    }))
   };
 }
 
@@ -187,7 +195,7 @@ batchLabRoutes.patch("/batches/:batchId/analyses/:analysisId", async (req, res, 
 
     if (req.body?.excluded === true) {
       const excluded = await prisma.labAnalysis.update({ where: { id: analysis.id }, data: { status: "EXCLUDED", error: "" }, include: { results: true, documents: true, whatsappDelivery: true } });
-      return res.json({ analysis: excluded });
+      return res.json({ analysis: serializeAnalysis({ ...excluded, batchId: analysis.batchId, sourceFileId: analysis.sourceFileId }) });
     }
 
     const patient = normalizePatientInput(req.body, analysis);
@@ -267,7 +275,7 @@ batchLabRoutes.patch("/batches/:batchId/analyses/:analysisId", async (req, res, 
     }));
     const transactionResults = await prisma.$transaction(operations);
     const updated = transactionResults.at(-1);
-    return res.json({ analysis: updated });
+    return res.json({ analysis: serializeAnalysis({ ...updated, batchId: analysis.batchId, sourceFileId: analysis.sourceFileId }) });
   } catch (error) {
     next(error);
   }
