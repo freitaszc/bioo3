@@ -170,3 +170,34 @@ test("preserves formatted conflicting raw values when encoding review choices", 
     "450,0 pg/mL"
   ]);
 });
+
+test("treats differently formatted equal numeric values as the same result", () => {
+  const merged = mergeBatchCandidates([
+    {
+      identity: "cpf:789",
+      sourceFileId: "file-1",
+      pageStart: 1,
+      pageEnd: 1,
+      patient: { name: "Paciente Mesmo Valor", age: 50, cpf: "789", gender: "F" },
+      values: {
+        "Vitamina B12": { testName: "Vitamina B12", value: 450, rawValue: "450" }
+      },
+      error: ""
+    },
+    {
+      identity: "cpf:789",
+      sourceFileId: "file-2",
+      pageStart: 1,
+      pageEnd: 1,
+      patient: { name: "Paciente Mesmo Valor", age: 50, cpf: "789", gender: "F" },
+      values: {
+        "Vitamina B12": { testName: "Vitamina B12", value: 450, rawValue: "450,0 pg/mL" }
+      },
+      error: ""
+    }
+  ]);
+
+  assert.equal(merged[0].values["Vitamina B12"].value, 450);
+  assert.deepEqual(conflictingValuesFromRawValue(merged[0].values["Vitamina B12"].rawValue), []);
+  assert.equal(merged[0].error, "");
+});

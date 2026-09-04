@@ -56,8 +56,6 @@ function numericValues(values) {
 }
 
 function normalizedConflictValue(value) {
-  const numeric = Number(value);
-  if (Number.isFinite(numeric)) return String(numeric);
   return String(value || "").trim();
 }
 
@@ -231,13 +229,15 @@ export function mergeBatchCandidates(candidates) {
 
       const byValue = new Map();
       for (const match of matches) {
-        const displayValue = normalizedConflictValue(match.rawValue ?? match.value);
+        const numericValue = Number(match.value);
+        const displayValue = normalizedConflictValue(match.rawValue ?? match.value ?? "");
         if (!displayValue) continue;
-        if (!byValue.has(displayValue)) byValue.set(displayValue, match);
+        const key = Number.isFinite(numericValue) ? `number:${numericValue}` : `raw:${displayValue}`;
+        if (!byValue.has(key)) byValue.set(key, { displayValue, match });
       }
 
       if (byValue.size > 1) {
-        const values = [...byValue.keys()];
+        const values = [...byValue.values()].map(({ displayValue }) => displayValue);
         warnings.push(conflictWarning(testName, values));
         mergedValues[testName] = {
           ...matches[0],
@@ -247,7 +247,7 @@ export function mergeBatchCandidates(candidates) {
         continue;
       }
 
-      const [selected] = byValue.values();
+      const [selected] = [...byValue.values()].map(({ match }) => match);
       mergedValues[testName] = selected || matches[0];
     }
 

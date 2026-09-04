@@ -777,10 +777,11 @@ export default function BioO3LabPage() {
                 {["Vitamina B12", "25-hidroxi D3"].map((testName) => {
                   const result = batchResult(batchAnalysis, testName);
                   const values = conflictingValues(result);
+                  const helpId = values.length > 1 ? `batch-analysis-conflict-${batchAnalysis.id}-${testName.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}` : undefined;
                   return <label key={testName}>
                     <span>{testName}</span>
-                    <input type="number" step="any" value={result.value ?? ""} disabled={!editable} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, results: batchAnalysis.results.map((item) => item.testName === testName ? { ...item, value: event.target.value } : item) })} />
-                    {values.length > 1 && <small className="form-error">Valores encontrados: {values.join(", ")}.{result.value !== null && result.value !== "" ? ` Valor selecionado: ${result.value}.` : " Informe o valor a considerar."}</small>}
+                    <input type="number" step="any" aria-describedby={helpId} value={result.value ?? ""} disabled={!editable} onChange={(event) => setBatchAnalysis({ ...batchAnalysis, results: batchAnalysis.results.map((item) => item.testName === testName ? { ...item, value: event.target.value } : item) })} />
+                    {values.length > 1 && <small id={helpId} className="form-error">Valores encontrados: {values.join(", ")}.{result.value !== null && result.value !== "" ? ` Valor selecionado: ${result.value}.` : " Informe o valor a considerar."}</small>}
                   </label>;
                 })}
                 <label className="full-width">
