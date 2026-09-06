@@ -1372,7 +1372,7 @@
         {
           "nome": "B12 2.500mcg",
           "preparo": "Diluir conforme orientação do fabricante.",
-          "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
+          "aplicacao": "Aplicar dose única (IM)."
         },
         {
           "nome": "Biotina",
@@ -1402,7 +1402,7 @@
         {
           "nome": "B12",
           "preparo": "Diluir conforme orientação do fabricante.",
-          "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
+          "aplicacao": "Aplicar dose única (IM)."
         }
       ],
       "high": ""
@@ -1421,7 +1421,7 @@
         {
           "nome": "B12",
           "preparo": "Diluir conforme orientação do fabricante.",
-          "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
+          "aplicacao": "Aplicar dose única (IM)."
         }
       ],
       "high": ""
@@ -1443,7 +1443,7 @@
         {
           "nome": "B12",
           "preparo": "Diluir conforme orientação do fabricante.",
-          "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
+          "aplicacao": "Aplicar dose única (IM)."
         }
       ],
       "high": ""
@@ -1504,7 +1504,7 @@
         {
           "nome": "B12",
           "preparo": "Diluir conforme orientação do fabricante.",
-          "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
+          "aplicacao": "Aplicar dose única (IM)."
         },
         {
           "nome": "Vitamina C",
@@ -1527,7 +1527,7 @@
         {
           "nome": "B12",
           "preparo": "Diluir conforme orientação do fabricante.",
-          "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
+          "aplicacao": "Aplicar dose única (IM)."
         },
         {
           "nome": "Vitamina C",
@@ -1555,7 +1555,7 @@
         {
           "nome": "B12",
           "preparo": "Diluir conforme orientação do fabricante.",
-          "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
+          "aplicacao": "Aplicar dose única (IM)."
         }
       ],
       "high": [
@@ -1580,13 +1580,13 @@
     }
   },
   "Vitamina B12": {
-    "ideal": "500-900 ng/L",
+    "ideal": "400-900 ng/L",
     "medications": {
       "low": [
         {
           "nome": "B12 2.500mg",
           "preparo": "Diluir conforme orientação do fabricante.",
-          "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
+          "aplicacao": "Aplicar dose única (IM)."
         }
       ],
       "high": ""
@@ -1847,7 +1847,7 @@
         {
           "nome": "B12 2500mcg",
           "preparo": "Diluir conforme orientação do fabricante.",
-          "aplicacao": "Aplicar 1x por semana por 4 semanas (IM)."
+          "aplicacao": "Aplicar dose única (IM)."
         }
       ],
       "high": [

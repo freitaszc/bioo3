@@ -43,7 +43,7 @@ export function patientIdentity(patient = {}) {
 }
 
 export function classifyValue(value, ideal) {
-  if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) return "MISSING";
+  if (value === null || value === undefined || String(value).trim() === "" || !Number.isFinite(Number(value))) return "MISSING";
   const { min, max } = parseIdealRange(ideal);
   if (min === null || max === null) return "MISSING";
   if (Number(value) < min) return "LOW";
@@ -58,7 +58,7 @@ function unitForTest(testName) {
 export function deriveAnalysisTexts(patient, resultValues, references) {
   const extraction = { patient, values: {} };
   for (const result of resultValues) {
-    if (result.value === null || !Number.isFinite(Number(result.value))) continue;
+    if (result.value === null || result.value === undefined || String(result.value).trim() === "" || !Number.isFinite(Number(result.value))) continue;
     extraction.values[result.testName] = {
       testName: result.testName,
       value: Number(result.value),

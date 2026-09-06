@@ -12,7 +12,7 @@ test("keeps the signature on the first page of the B12 and D prescription", asyn
     prescriptionText: [
       "- B12 2.500mg",
       "Preparo: Diluir conforme orientação do fabricante.",
-      "Aplicação: Aplicar 1x por semana por 4 semanas (IM).",
+      "Aplicação: Aplicar dose única (IM).",
       "",
       "- ADEK2 600.000 UI",
       "Preparo: Aplicar intramuscular lento e profundo, usar agulha 0,7x30mm, observando que essa aplicação deve ser realizada no quadrante superior externo do glúteo (não administrar no deltoide). Observação: Não deixar o óleo retornar, risco de agressão cutânea gerando vermelhidão local.",

@@ -66,3 +66,17 @@ test("batch prescription uses only the configured ADEK and B12 suggestions", () 
   assert.match(result.prescriptionText, /ADEK2 600\.000 UI/);
   assert.doesNotMatch(result.prescriptionText, /Moreflex|Trio Metilador|Vitamina D3/);
 });
+
+test("batch review recalculates B12 scheduling and the minor warning", () => {
+  const initial = deriveAnalysisTexts({ age: 17 }, [{ testName: "Vitamina B12", value: 100 }], batchReferences);
+  assert.match(initial.diagnosisText, /menor de 18 anos/);
+  assert.match(initial.prescriptionText, /1 dose 1x por semana por 2 semanas/);
+  const reviewed = deriveAnalysisTexts({ age: 18 }, [{ testName: "Vitamina B12", value: 200 }], batchReferences);
+  assert.doesNotMatch(reviewed.diagnosisText, /menor de 18 anos/);
+  assert.match(reviewed.prescriptionText, /dose única/);
+  for (const value of [null, undefined, "", " "]) {
+    const missing = deriveAnalysisTexts({ age: 40 }, [{ testName: "Vitamina B12", value }], batchReferences);
+    assert.equal(missing.prescriptionText, "");
+    assert.equal(missing.hasAlteration, false);
+  }
+});

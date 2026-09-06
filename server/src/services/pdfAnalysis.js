@@ -349,8 +349,22 @@ export function compareExtractedValuesToReferences(extraction, references) {
       }
     }
 
+    // Requested scheduling rule, for prescriber review; not a prediction of serum response.
+    // The target includes 400 so that a result of 200 receives one application.
+    if (testName === "Vitamina B12") {
+      const value = extracted.value;
+      const doses = Number.isFinite(value) && value >= 0 && value < 400
+        ? Math.ceil((400 - value) / 200) : 0;
+      medications = doses ? getMedicationList(reference, "low").map((medication) => ({
+        ...medication,
+        aplicacao: doses === 1
+          ? "Aplicar dose única (IM)."
+          : `Aplicar 1 dose 1x por semana por ${doses} semanas (IM).`
+      })) : [];
+    }
+
     for (const medication of medications) {
-      if (medication?.nome && !prescriptions.has(medication.nome)) {
+      if (medication?.nome && (testName === "Vitamina B12" || !prescriptions.has(medication.nome))) {
         prescriptions.set(medication.nome, medication);
       }
     }
@@ -371,6 +385,10 @@ export function compareExtractedValuesToReferences(extraction, references) {
   results.sort((a, b) => a.testName.localeCompare(b.testName, "pt-BR"));
 
   return {
+    warnings: extraction.patient?.age !== null && extraction.patient?.age !== undefined
+      && String(extraction.patient.age).trim() !== ""
+      && Number(extraction.patient.age) > 0 && Number(extraction.patient.age) < 18
+      ? ["Atenção: paciente menor de 18 anos."] : [],
     results,
     summary: {
       totalExtracted: results.length,
@@ -423,7 +441,7 @@ export function buildAnalysisTexts(comparison) {
     .map(([title, lines]) => `${title}\n${lines.join("\n")}`);
 
   return {
-    diagnosisText: diagnosisSections.join("\n\n"),
+    diagnosisText: [...(comparison.warnings || []), ...diagnosisSections].join("\n\n"),
     prescriptionText: prescriptionLines.join("\n\n")
   };
 }
