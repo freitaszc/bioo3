@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import { api, apiAssetUrl } from "../api";
@@ -123,8 +123,15 @@ export default function BioO3LabPage() {
       .catch((err) => setError(err.message));
   }, [linkedPatientId]);
 
-  async function refreshBatches() {
-    const data = await api.labBatches();
+  const batchVersion = useRef(null);
+
+  async function refreshBatches({ incremental = false } = {}) {
+    const scope = localStorage.getItem("bioo3_clinic_scope") || "";
+    const known = batchVersion.current;
+    const data = await api.labBatches(incremental && known?.scope === scope ? known.version : undefined);
+    if (scope !== (localStorage.getItem("bioo3_clinic_scope") || "")) return [];
+    batchVersion.current = { scope, version: data.version };
+    if (data.unchanged) return [];
     const next = data.batches || [];
     setBatches(next);
     setActiveBatchId((current) => current || next[0]?.id || "");
@@ -134,8 +141,20 @@ export default function BioO3LabPage() {
   useEffect(() => {
     if (mode !== "batch") return undefined;
     refreshBatches().catch((err) => setError(err.message));
-    const timer = window.setInterval(() => refreshBatches().catch(() => {}), 3000);
-    return () => window.clearInterval(timer);
+    let polling = false;
+    const poll = async () => {
+      if (document.hidden || polling) return;
+      polling = true;
+      try { await refreshBatches({ incremental: true }); }
+      catch { /* Keep the current results and retry on the next poll. */ }
+      finally { polling = false; }
+    };
+    const timer = window.setInterval(poll, 3000);
+    document.addEventListener("visibilitychange", poll);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", poll);
+    };
   }, [mode]);
 
   async function saveDoctor(event) {

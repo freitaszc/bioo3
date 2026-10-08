@@ -179,7 +179,7 @@ export const api = {
     method: "POST",
     body: JSON.stringify(payload)
   }),
-  labBatches: () => request("/lab/batches"),
+  labBatches: (version) => request(`/lab/batches${version ? `?version=${encodeURIComponent(version)}` : ""}`),
   labBatch: (id) => request(`/lab/batches/${id}`),
   createLabBatch: (files, doctorId) => {
     const body = new FormData();

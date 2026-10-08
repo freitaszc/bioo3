@@ -32,13 +32,13 @@ export async function runBackgroundCycle() {
   if (running) return;
   running = true;
   try {
-    const batch = await prisma.analysisBatch.findFirst({ where: { status: "QUEUED" }, orderBy: { createdAt: "asc" } });
+    const batch = await prisma.analysisBatch.findFirst({ where: { status: "QUEUED" }, orderBy: { createdAt: "asc" }, select: { id: true } });
     if (batch) await processBatch(batch.id);
 
-    const report = await prisma.labAnalysis.findFirst({ where: { status: "CONFIRMED" }, orderBy: { confirmedAt: "asc" } });
+    const report = await prisma.labAnalysis.findFirst({ where: { status: "CONFIRMED" }, orderBy: { confirmedAt: "asc" }, select: { id: true } });
     if (report) await generateReportForAnalysis(report.id);
 
-    const delivery = await prisma.whatsAppDelivery.findFirst({ where: { status: "QUEUED" }, orderBy: { createdAt: "asc" } });
+    const delivery = await prisma.whatsAppDelivery.findFirst({ where: { status: "QUEUED" }, orderBy: { createdAt: "asc" }, select: { id: true } });
     if (delivery) {
       try { await sendQueuedDelivery(delivery.id); }
       catch (error) { await markDeliveryFailed(delivery.id, error); }

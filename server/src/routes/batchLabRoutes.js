@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import multer from "multer";
 import { Router } from "express";
 import { prisma } from "../prisma.js";
+import { batchRevision } from "../services/batchRevision.js";
 import { clinicWhere, requireActiveClinic, selectedClinicId } from "../clinicScope.js";
 import { normalizeWhatsAppPhone, validWhatsAppPhone } from "../inputSanitizers.js";
 import {
@@ -128,13 +129,37 @@ batchLabRoutes.post("/batches", upload.array("files", 50), async (req, res, next
 
 batchLabRoutes.get("/batches", async (req, res, next) => {
   try {
+    const where = clinicWhere(req);
+    // Read revisions rather than large diagnosis/prescription/result payloads on polling.
+    const revisions = await prisma.analysisBatch.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      take: 30,
+      select: {
+        id: true, updatedAt: true,
+        clinic: { select: { id: true, updatedAt: true } },
+        doctor: { select: { id: true, updatedAt: true } },
+        sourceFiles: { orderBy: { id: "asc" }, select: { id: true, pageCount: true, expiresAt: true, purgedAt: true } },
+        analyses: {
+          orderBy: { id: "asc" },
+          select: {
+            id: true, updatedAt: true,
+            results: { orderBy: { id: "asc" }, select: { id: true, updatedAt: true } },
+            documents: { orderBy: { id: "asc" }, select: { id: true, expiresAt: true, purgedAt: true } },
+            whatsappDelivery: { select: { id: true, updatedAt: true } }
+          }
+        }
+      }
+    });
+    const version = batchRevision(revisions);
+    if (req.query.version === version) return res.json({ unchanged: true, version });
     const batches = await prisma.analysisBatch.findMany({
-      where: clinicWhere(req),
+      where,
       include: batchInclude,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       take: 30
     });
-    return res.json({ batches: batches.map(serializeBatch) });
+    return res.json({ batches: batches.map(serializeBatch), version });
   } catch (error) {
     next(error);
   }
