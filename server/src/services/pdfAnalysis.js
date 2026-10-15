@@ -282,7 +282,20 @@ function calculateAgeAtDate(birthDate, referenceDate = new Date()) {
 
 function extractPatientInfo(text, lines) {
   const joined = text.replace(/\s+/g, " ");
-  const cpf = joined.match(/C\.?P\.?F\.?\s*[:\s]?\s*(\d{3}\.?\d{3}\.?\d{3}-?\d{2})/i)?.[1] || "";
+  let cpf = "";
+  for (let index = 0; index < lines.length; index += 1) {
+    const label = /\bC\s*\.?\s*P\s*\.?\s*F\s*\.?\s*:?[ \t]*/i.exec(lines[index]);
+    if (!label) continue;
+    const afterLabel = lines[index].slice(label.index + label[0].length).trim();
+    // A value may be on the next line, but never search through other fields,
+    // dates or report identifiers to fill an empty CPF label.
+    const candidate = afterLabel || lines[index + 1] || "";
+    const match = candidate.match(/^(\d{3}\.?\d{3}\.?\d{3}-?\d{2})(?=$|\s|[,;])/);
+    if (match) {
+      cpf = match[1];
+      break;
+    }
+  }
   const gender = joined.match(/Sexo\s*[:\s]?\s*([MF])/i)?.[1] || "";
   const doctor = lines.find((line) => /m[eé]dico|dr\.?|dra\.?/i.test(line)) || "";
   const birthDateLineIndex = lines.findIndex((line) => /D\.?N\.?\s*\d{2}\/\d{2}\/\d{4}/i.test(line));
@@ -291,9 +304,9 @@ function extractPatientInfo(text, lines) {
   let age = birthDate ? calculateAgeAtDate(birthDate, referenceDate) : 0;
 
   let name = "";
-  const patientLine = lines.find((line) => /paciente\s*:/i.test(line));
+  const patientLine = lines.find((line) => /(?:\bpaciente|^nome)\s*:/i.test(line));
   if (patientLine) {
-    name = patientLine.replace(/.*paciente\s*:\s*/i, "").replace(/\s+idade.*$/i, "").trim();
+    name = patientLine.replace(/.*?(?:\bpaciente|^nome)\s*:\s*/i, "").replace(/\s+idade.*$/i, "").trim();
   }
 
   if (!name) {
@@ -312,6 +325,11 @@ function extractPatientInfo(text, lines) {
   if (!age) {
     age = Number(joined.match(/Idade\s*[:\s]?\s*(\d{1,3})\s*(?:anos|a\b)/i)?.[1] || 0);
   }
+
+  name = name.replace(/^(?:nome|paciente)\s*:\s*/i, "")
+    .replace(/\s+BIOCELL\s+\d+\s+ANOS\b.*$/i, "")
+    .replace(/\s+(?:C\.?P\.?F\.?|sexo|D\.?N\.?)\s*[:\s].*$/i, "")
+    .trim();
 
   return {
     name: name ? name.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase()) : "",

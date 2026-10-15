@@ -46,6 +46,31 @@ test("keeps existing inline and block templates working", async () => {
   ]) assertVitaminValues(await extractPdfToJson("existing.pdf", { text, references }));
 });
 
+test("separates BIOCELL branding from the patient's name", async () => {
+  const extraction = await extractPdfToJson("header.pdf", { text: `Nome: PESSOA DE TESTE BIOCELL 25 ANOS
+D.N. 24/05/2001 R.G. C.P.F.
+Solicitante: DR TESTE Data de impressão: 08/10/2026 010096443`, references });
+  assert.equal(extraction.patient.name, "Pessoa De Teste");
+  assert.equal(extraction.patient.age, 25);
+  assert.equal(extraction.patient.cpf, "");
+});
+
+test("reads CPF only as a complete value next to its label or on the following line", async () => {
+  for (const [text, expected] of [
+    ["Paciente: PESSOA TESTE Idade: 40 anos\nCPF: 123.456.789-09", "123.456.789-09"],
+    ["Nome: PESSOA TESTE\nC.P.F.\n12345678909", "12345678909"],
+    ["CPF: 123456789091", ""],
+    ["CPF: 010096443", ""],
+    ["CPF:\nData de impressão: 08/10/2026\n12345678909", ""],
+    ["CPF:\nRG: 12345678909", ""],
+    ["Paciente: PESSOA TESTE Idade: 40 anos", ""]
+  ]) {
+    const extraction = await extractPdfToJson("header.pdf", { text, references });
+    assert.equal(extraction.patient.cpf, expected, text);
+    assert.equal(extraction.patient.name, text.startsWith("CPF") ? "" : "Pessoa Teste");
+  }
+});
+
 test("does not mistake dates, reference ranges or the next assay for a result", async () => {
   const text = `Vitamina D-25 Hidroxi
 Data de Coleta: 05/10/2026
@@ -99,10 +124,16 @@ test("automatically recognizes image-only pages in single and batch uploads", as
 // PDF_ANALYSIS_SAMPLE='/path/to/report.pdf' npm test
 test("supplied scanned PDF end-to-end", { skip: !process.env.PDF_ANALYSIS_SAMPLE }, async () => {
   const buffer = await readFile(process.env.PDF_ANALYSIS_SAMPLE);
-  assertVitaminValues(await extractPdfBufferToJson(buffer, { references }));
+  const extraction = await extractPdfBufferToJson(buffer, { references });
+  assertVitaminValues(extraction);
+  assert.ok(extraction.patient.name);
+  assert.doesNotMatch(extraction.patient.name, /nome:|biocell|25 anos/i);
+  assert.equal(extraction.patient.cpf, "");
   const batch = await segmentPdfBuffer(buffer, references);
   assert.equal(batch.pageCount, 1);
   assertVitaminValues(batch.segments[0]);
+  assert.equal(batch.segments[0].patient.name, extraction.patient.name);
+  assert.equal(batch.segments[0].patient.cpf, "");
 });
 
 function statusFor(value) {
