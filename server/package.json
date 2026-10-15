@@ -14,10 +14,11 @@
     "seed": "prisma db seed"
   },
   "dependencies": {
-    "@napi-rs/canvas": "0.1.80",
     "@aws-sdk/client-s3": "^3.1116.0",
     "@aws-sdk/s3-request-presigner": "^3.1116.0",
+    "@napi-rs/canvas": "0.1.80",
     "@prisma/client": "^5.22.0",
+    "@tesseract.js-data/por": "^1.0.0",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -26,7 +27,8 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",
     "pdf-parse": "^2.4.5",
-    "pdfkit": "^0.20.1"
+    "pdfkit": "^0.20.1",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.7",

@@ -2,6 +2,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PDFParse } from "pdf-parse";
+import { createWorker } from "tesseract.js";
+import portuguese from "@tesseract.js-data/por";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -96,13 +98,42 @@ export async function readPdfText(pdfPath) {
 }
 
 export async function readPdfBufferText(data) {
+  const pages = await readPdfBufferPages(data);
+  return pages.map((page) => page.text).join("\n");
+}
+
+// Use the text layer when present; recognize image-only pages locally, including
+// scanned pages inside an otherwise searchable report. No patient data is sent out.
+export async function readPdfBufferPages(data) {
   const parser = new PDFParse({ data });
+  let worker;
 
   try {
     const result = await parser.getText();
-    return result.text || "";
+    const pages = [];
+    for (const page of result.pages) {
+      let text = page.text || "";
+      if (!/[\p{L}\d]/u.test(text)) {
+        worker ||= await createWorker("por", 1, {
+          langPath: portuguese.langPath,
+          gzip: portuguese.gzip,
+          cacheMethod: "none"
+        });
+        const screenshot = await parser.getScreenshot({
+          partial: [page.num], desiredWidth: 2400, imageBuffer: true, imageDataUrl: false
+        });
+        const recognized = await worker.recognize(screenshot.pages[0].data);
+        text = recognized.data.text;
+      }
+      pages.push({ number: page.num, text });
+    }
+    return pages;
   } finally {
-    await parser.destroy();
+    try {
+      if (worker) await worker.terminate();
+    } finally {
+      await parser.destroy();
+    }
   }
 }
 
@@ -113,17 +144,23 @@ function buildReferenceMatchers(references) {
   });
 }
 
-function getCandidateLines(lines, alias) {
+function getCandidateLines(lines, alias, otherAliases) {
   const candidates = [];
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     const normalizedLine = normalizeText(line);
     if (!normalizedLine.includes(alias)) continue;
 
+    const block = [];
+    for (const following of lines.slice(index + 1, index + 9)) {
+      const normalized = normalizeText(following);
+      if (otherAliases.some((other) => normalized.startsWith(other))) break;
+      block.push(following);
+    }
     candidates.push({
       line,
       lineNumber: index + 1,
-      window: lines.slice(index, index + 9).filter(Boolean).join(" ")
+      window: [line, ...block].join("\n")
     });
   }
   return candidates;
@@ -185,14 +222,31 @@ function extractValueFromAliasLine(candidate, alias) {
   };
 }
 
+function extractValueFromOcrResult(candidate) {
+  // Dotted leaders in scans can be recognized as letters. Require a result
+  // label and a measured concentration unit on the same line; never use a
+  // reference interval or collection date as a fallback value.
+  for (const line of candidate.window.split("\n")) {
+    const match = normalizeText(line).match(/^resultado[o]?\s*\.{2,}[a-z.\s]*?(\d{1,6}(?:[.,]\d{1,4})?)\s*(?:ng|pg)\s*\/\s*ml\b/);
+    if (!match) continue;
+    return {
+      value: parseNumericValue(match[1]), rawValue: match[1],
+      line: candidate.line, lineNumber: candidate.lineNumber, parser: "ocr-result"
+    };
+  }
+  return null;
+}
+
 const VALUE_PARSERS = [
   extractValueFromAliasLine,
-  extractValueWithBlockResult
+  extractValueWithBlockResult,
+  extractValueFromOcrResult
 ];
 
-function chooseBestValue(lines, matcher) {
+function chooseBestValue(lines, matcher, matchers) {
+  const otherAliases = matchers.filter((other) => other.name !== matcher.name).flatMap((other) => other.aliases);
   for (const alias of matcher.aliases) {
-    const candidates = getCandidateLines(lines, alias);
+    const candidates = getCandidateLines(lines, alias, otherAliases);
     for (const candidate of candidates) {
       for (const parser of VALUE_PARSERS) {
         const value = parser(candidate, alias);
@@ -271,13 +325,13 @@ function extractPatientInfo(text, lines) {
 
 export async function extractPdfToJson(pdfPath, options = {}) {
   const references = options.references || await readReferences(options.referencesPath);
-  const rawText = options.text || await readPdfText(pdfPath);
+  const rawText = options.text ?? await readPdfText(pdfPath);
   const lines = rawText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const matchers = buildReferenceMatchers(references);
   const values = {};
 
   for (const matcher of matchers) {
-    const match = chooseBestValue(lines, matcher);
+    const match = chooseBestValue(lines, matcher, matchers);
     if (!match) continue;
 
     values[matcher.name] = {
@@ -307,7 +361,7 @@ export async function extractPdfToJson(pdfPath, options = {}) {
 
 export async function extractPdfBufferToJson(buffer, options = {}) {
   const references = options.references || await readReferences(options.referencesPath);
-  const rawText = options.text || await readPdfBufferText(buffer);
+  const rawText = options.text ?? await readPdfBufferText(buffer);
   return extractPdfToJson(options.source || "uploaded.pdf", { ...options, references, text: rawText });
 }
 

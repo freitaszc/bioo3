@@ -1,14 +1,14 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PDFParse } from "pdf-parse";
 import { prisma } from "../prisma.js";
 import {
   buildAnalysisTexts,
   compareExtractedValuesToReferences,
   extractPdfToJson,
   normalizeText,
-  parseIdealRange
+  parseIdealRange,
+  readPdfBufferPages
 } from "./pdfAnalysis.js";
 import { createStorageKey, getObjectBuffer, putObject } from "./objectStorage.js";
 import { generateAnalysisReport, reportFileName } from "./reportPdf.js";
@@ -76,13 +76,7 @@ export function deriveAnalysisTexts(patient, resultValues, references) {
 }
 
 async function pdfPages(buffer) {
-  const parser = new PDFParse({ data: buffer });
-  try {
-    const result = await parser.getText();
-    return result.pages.map((page) => ({ number: page.num, text: page.text || "" }));
-  } finally {
-    await parser.destroy();
-  }
+  return readPdfBufferPages(buffer);
 }
 
 export async function segmentPdfBuffer(buffer, references) {

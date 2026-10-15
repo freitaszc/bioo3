@@ -16,6 +16,23 @@ The platform supports patient management, laboratory analysis, scheduling, inven
 - WhatsApp integration
 - Private storage for laboratory documents
 
+## Laboratory PDF parsing
+
+Single and batch uploads automatically use a PDF's text layer, with local
+Portuguese OCR for image-only pages. No template toggle is required. OCR uses
+bundled language data without external services and adds processing time for
+scanned pages. Review extracted results before confirming an analysis.
+
+Run the server parser regression tests with `cd server && npm test`. To also
+check the original BIOCELL sample (vitamin D 23.3 ng/mL and B12 356 pg/mL), run:
+
+```sh
+PDF_ANALYSIS_SAMPLE='/path/to/SAMARA BEATRIZ 02.pdf' npm test
+```
+
+The private sample is not stored in the repository; the default suite includes
+de-identified assay lines and a generated image-only PDF.
+
 ## Tech Stack
 
 ### Frontend
